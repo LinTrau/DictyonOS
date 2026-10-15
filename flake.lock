@@ -1,0 +1,170 @@
+{
+  "nodes": {
+    "asterinas": {
+      "inputs": {
+        "nixpkgs": "nixpkgs",
+        "nixpkgs-typos": "nixpkgs-typos",
+        "rust-overlay": "rust-overlay"
+      },
+      "locked": {
+        "lastModified": 1791969106,
+        "narHash": "sha256-XPOchHOcWsaWzbIDXa3uIB5GnNXTDeYu0nqWlBl8Aaw=",
+        "owner": "asterinas",
+        "repo": "asterinas",
+        "rev": "01acaa7eeed755a32fc658e7d732b080061b4872",
+        "type": "github"
+      },
+      "original": {
+        "owner": "asterinas",
+        "repo": "asterinas",
+        "rev": "01acaa7eeed755a32fc658e7d732b080061b4872",
+        "type": "github"
+      }
+    },
+    "infuse": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1782538150,
+        "narHash": "sha256-PFRrjDC62Mk7cgyst4l/riW0C7o39srZt/+rYq9Iovs=",
+        "ref": "refs/heads/trunk",
+        "rev": "364ea18b5611b5fd6a6acd7151411b430a70e194",
+        "revCount": 57,
+        "type": "git",
+        "url": "https://codeberg.org/amjoseph/infuse.nix"
+      },
+      "original": {
+        "rev": "364ea18b5611b5fd6a6acd7151411b430a70e194",
+        "type": "git",
+        "url": "https://codeberg.org/amjoseph/infuse.nix"
+      }
+    },
+    "kernel": {
+      "flake": false,
+      "locked": {
+        "path": "./kernel",
+        "type": "path"
+      },
+      "original": {
+        "path": "./kernel",
+        "type": "path"
+      },
+      "parent": []
+    },
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1784432872,
+        "narHash": "sha256-n3gKTBIV4ZA5VQpUakffBe3KGu4+mhPoA34rrqS0GkA=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "fd1462031fdee08f65fd0b4c6b64e22239a77870",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "fd1462031fdee08f65fd0b4c6b64e22239a77870",
+        "type": "github"
+      }
+    },
+    "nixpkgs-lix": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1791883866,
+        "narHash": "sha256-yvkDdToRZ4IgPc9tSBzzCYJvTLf8n5eE3rgUkpCuD5A=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "a033e66ab94a6bedf2c3d58d93a36319d3cbbbaf",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-26.05",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "nixpkgs-sixos": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1735563628,
+        "narHash": "sha256-OnSAY7XDSx7CtDoqNh8jwVwh4xNL/2HaJxGjryLWzX8=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "b134951a4c9f3c995fd7be05f3243f8ecd65d798",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-24.05",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "nixpkgs-typos": {
+      "locked": {
+        "lastModified": 1762977756,
+        "narHash": "sha256-4PqRErxfe+2toFJFgcRKZ0UI9NSIOJa+7RXVtBhy4KE=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "c5ae371f1a6a7fd27823bc500d9390b38c05fa55",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "c5ae371f1a6a7fd27823bc500d9390b38c05fa55",
+        "type": "github"
+      }
+    },
+    "root": {
+      "inputs": {
+        "asterinas": "asterinas",
+        "infuse": "infuse",
+        "kernel": "kernel",
+        "nixpkgs-lix": "nixpkgs-lix",
+        "nixpkgs-sixos": "nixpkgs-sixos",
+        "sixos": "sixos"
+      }
+    },
+    "rust-overlay": {
+      "inputs": {
+        "nixpkgs": [
+          "asterinas",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1784870759,
+        "narHash": "sha256-ZaS89rj5u6pygXKDRfCzPMGm7isJxLsSeIAR5EaSyu8=",
+        "owner": "oxalica",
+        "repo": "rust-overlay",
+        "rev": "471286a5fadc690e2408ad854eb32325f5e74da7",
+        "type": "github"
+      },
+      "original": {
+        "owner": "oxalica",
+        "repo": "rust-overlay",
+        "type": "github"
+      }
+    },
+    "sixos": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1791564411,
+        "narHash": "sha256-cGTdMPVU1jl1Fmd4VEv+ZJYOPREIVTNN65Y5AFnNNIg=",
+        "ref": "refs/heads/master",
+        "rev": "d6d69bda0cdb4ffb634d9e90c7c09d4f8fc6c163",
+        "revCount": 657,
+        "type": "git",
+        "url": "https://codeberg.org/amjoseph/sixos"
+      },
+      "original": {
+        "rev": "d6d69bda0cdb4ffb634d9e90c7c09d4f8fc6c163",
+        "type": "git",
+        "url": "https://codeberg.org/amjoseph/sixos"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}

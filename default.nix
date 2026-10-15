@@ -29,7 +29,13 @@
   infuse-src,
 
   # The Asterinas kernel payload produced by cargo osdk build.
-  kernelElf,
+  #
+  # Optional on purpose. dictyonos boots with QEMU direct kernel boot, so the
+  # kernel reaches the machine through the -kernel argument and is never read
+  # out of /boot. Leaving this null keeps every package in this flake buildable
+  # from nothing but a git clone; pass the real payload to also embed it in
+  # <configuration>/boot/kernel.
+  kernelElf ? null,
 
   hostName ? "dictyonos",
 }:
@@ -52,19 +58,30 @@ let
 
   # ---------------- kernel --------------------------------------------
 
+  # Stands in for <configuration>/boot/kernel when no payload was supplied.
+  # Nothing in the boot path reads it: QEMU gets the kernel via -kernel.
+  kernelPlaceholder = pkgs.writeText "asterinas-kernel-placeholder" ''
+    dictyonos: place-holder for the Asterinas kernel payload.
+
+    This system boots with QEMU direct kernel boot, so the kernel is handed to
+    the machine on the QEMU command line (-kernel) rather than read out of
+    <configuration>/boot/kernel.
+
+    To embed the real payload here as well:
+      ./scripts/build-kernel.sh
+      nix build .#rootfs --override-input kernel path:./kernel
+  '';
+
+  haveKernel = kernelElf != null && builtins.pathExists kernelElf;
+
   kernelPayload =
-    if !builtins.pathExists kernelElf then
-      throw ''
-        dictyonos: the Asterinas kernel payload was not found at
-          ${toString kernelElf}
-        Build it first:
-          ./scripts/build-kernel.sh
-      ''
-    else
+    if haveKernel then
       builtins.path {
         name = "asterinas-kernel";
         path = kernelElf;
-      };
+      }
+    else
+      kernelPlaceholder;
 
   # ---------------- initramfs -----------------------------------------
 
@@ -303,7 +320,7 @@ let
 in
 {
   inherit lib pkgs lix lixPkgs infuse system;
-  inherit initramfs kernelPayload closureInfo;
+  inherit initramfs kernelPayload haveKernel closureInfo;
   inherit (host) configuration;
   inherit host;
 

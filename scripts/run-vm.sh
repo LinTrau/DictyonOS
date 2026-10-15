@@ -30,7 +30,9 @@ SMP="${SMP:-1}"
 NET="${NET:-1}"
 TIMEOUT="${TIMEOUT:-240}"
 QEMU_BIN="${QEMU_BIN:-qemu-system-x86_64}"
-LOG="${SERIAL_LOG:-$ROOT/build/serial.log}"
+# 'nix run' executes this from the store, where $ROOT is read-only; log to the
+# caller's working directory instead.
+LOG="${SERIAL_LOG:-$PWD/serial.log}"
 
 for f in "$KERNEL_ELF" "$ROOTFS" "$INITRAMFS"; do
   if [ ! -e "$f" ]; then
@@ -43,6 +45,21 @@ done
 # CMDLINE can be overridden to experiment with kernel parameters without
 # rebuilding the image.
 CMDLINE="${CMDLINE:-$(cat "$CONFIG/boot/kernel-params")}"
+
+# The rootfs produced by nix is an immutable, read-only store object, and a
+# running system needs a writable disk. Boot from a private copy instead.
+WORKDIR="${DICTYONOS_WORKDIR:-$PWD/.dictyonos-vm}"
+if [ -w "$ROOTFS" ]; then
+  DISK="$ROOTFS"
+else
+  mkdir -p "$WORKDIR"
+  DISK="$WORKDIR/rootfs.ext2"
+  if [ "${RESET_DISK:-1}" = "1" ] || [ ! -e "$DISK" ] || [ "$ROOTFS" -nt "$DISK" ]; then
+    echo "==> staging a writable copy of the root filesystem"
+    cp -f "$ROOTFS" "$DISK"
+    chmod u+w "$DISK"
+  fi
+fi
 
 ACCEL=""
 CPU="${CPU:-Icelake-Server,+x2apic,+vmx}"
@@ -76,7 +93,7 @@ QEMU_ARGS=(
   -kernel "$KERNEL_ELF"
   -initrd "$INITRAMFS"
   -append "$CMDLINE"
-  -drive if=none,format=raw,id=rootfs,file="$ROOTFS"
+  -drive if=none,format=raw,id=rootfs,file="$DISK"
   -device virtio-blk-pci,bus=pcie.0,addr=0xc,drive=rootfs,serial=vrootfs,disable-legacy=on,disable-modern=off,queue-size=64,num-queues=1,request-merging=off,backend_defaults=off,discard=off,write-zeroes=off,event_idx=off,indirect_desc=off,queue_reset=off
   -device virtio-serial-pci,disable-legacy=on,disable-modern=off
   -object rng-random,id=rng0,filename=/dev/urandom
@@ -87,7 +104,7 @@ QEMU_ARGS=(
 echo "==> dictyonos"
 echo "    kernel : $KERNEL_ELF"
 echo "    initrd : $INITRAMFS"
-echo "    rootfs : $ROOTFS"
+echo "    rootfs : $DISK"
 echo "    net    : $NET"
 echo "    cmdline: $CMDLINE"
 echo

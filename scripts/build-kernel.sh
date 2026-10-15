@@ -23,6 +23,7 @@
 #   DICTYONOS_CACHE        cache root (default XDG_CACHE_HOME/dictyonos-build-mirror)
 #   DICTYONOS_BUILD_USER   /proc/version "compile by" field (default dictyonos)
 #   DICTYONOS_BUILD_HOST   /proc/version "compile host" field (default builder)
+#   DICTYONOS_NO_MIRROR    set to 1 to refuse to relocate a non-ASCII checkout
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -34,10 +35,10 @@ SHIM_DIR="$CACHE_ROOT/shim"
 OUT_ELF="${DICTYONOS_KERNEL_OUT:-$ROOT/kernel/asterinas-osdk-bin.elf}"
 
 export CARGO_HOME="${CARGO_HOME:-$CACHE_ROOT/cargo-home}"
-export OSDK_BUILD_USERNAME="${DICTYONOS_BUILD_USER:-dictyonos}"
-export OSDK_BUILD_HOSTNAME="${DICTYONOS_BUILD_HOST:-builder}"
-export KBUILD_BUILD_USER="$OSDK_BUILD_USERNAME"
-export KBUILD_BUILD_HOST="$OSDK_BUILD_HOSTNAME"
+export DICTYONOS_BUILD_USER="${DICTYONOS_BUILD_USER:-dictyonos}"
+export DICTYONOS_BUILD_HOST="${DICTYONOS_BUILD_HOST:-builder}"
+export KBUILD_BUILD_USER="$DICTYONOS_BUILD_USER"
+export KBUILD_BUILD_HOST="$DICTYONOS_BUILD_HOST"
 
 log() { printf '==> %s\n' "$*"; }
 
@@ -59,7 +60,7 @@ if [ -f "$ROOT/../asterinas/flake.nix" ]; then
   log "using the sibling Asterinas checkout at $SRC"
 else
   log "resolving the pinned Asterinas source from the flake input"
-  SRC="$(nix build --no-link --print-out-paths "$ROOT#asterinas-source")"
+  SRC="$(readlink -f "$(nix build --no-link --print-out-paths "$ROOT#asterinas-source")")"
 fi
 
 # ------------------------------------------------------------- choose build dir
@@ -86,32 +87,52 @@ cat > "$SHIM_DIR/cargo" <<'SHIM'
 # Replace the build metadata cargo-osdk is about to inject, then hand over to
 # the real cargo (with this directory removed from PATH).
 self_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-new_path=""
+
+# Resolve the real cargo to an absolute path but leave PATH untouched: PATH
+# must keep pointing at this shim so that the cargo invocations cargo-osdk
+# spawns deeper down are intercepted too.
+real_cargo=""
 old_ifs="$IFS"
 IFS=:
 for d in $PATH; do
   [ "$d" = "$self_dir" ] && continue
-  new_path="${new_path:+$new_path:}$d"
+  if [ -x "$d/cargo" ]; then real_cargo="$d/cargo"; break; fi
 done
 IFS="$old_ifs"
-PATH="$new_path"
-export PATH
-export OSDK_BUILD_USERNAME="${OSDK_BUILD_USERNAME:-dictyonos}"
-export OSDK_BUILD_HOSTNAME="${OSDK_BUILD_HOSTNAME:-builder}"
+if [ -z "$real_cargo" ]; then
+  echo "cargo shim: could not find the real cargo on PATH" >&2
+  exit 127
+fi
+
+# NB: the values must be read from dedicated DICTYONOS_BUILD_* variables.
+# OSDK_BUILD_USERNAME / OSDK_BUILD_HOSTNAME are already set (to whoami(1)
+# output) by cargo-osdk before it spawns us, so using them as the override
+# source would just pass the leaking values straight through.
+export OSDK_BUILD_USERNAME="${DICTYONOS_BUILD_USER:-dictyonos}"
+export OSDK_BUILD_HOSTNAME="${DICTYONOS_BUILD_HOST:-builder}"
 export KBUILD_BUILD_USER="$OSDK_BUILD_USERNAME"
 export KBUILD_BUILD_HOST="$OSDK_BUILD_HOSTNAME"
-exec cargo "$@"
+exec "$real_cargo" "$@"
 SHIM
 chmod +x "$SHIM_DIR/cargo"
-export PATH="$SHIM_DIR:$PATH"
 
 log "work directory: $WORK"
 log "cargo home:     $CARGO_HOME"
 log "building; this takes a few minutes"
 
-export WORK
+# NOTE: the shim has to go on PATH *inside* the dev shell. 'nix develop'
+# constructs PATH from the shell derivation and drops whatever the caller
+# prepended, so doing it out here would silently have no effect and the real
+# whoami(1) values would end up in /proc/version.
+export WORK SHIM_DIR
 nix develop "$ROOT#kernel" -c bash -euo pipefail -c '
+  export PATH="$SHIM_DIR:$PATH"
   cd "$WORK"
+
+  if [ "$(command -v cargo)" != "$SHIM_DIR/cargo" ]; then
+    echo "error: the cargo shim is not first on PATH; build metadata would leak" >&2
+    exit 1
+  fi
 
   stamp="$CARGO_HOME/.osdk-source-path"
   if [ ! -x "$CARGO_HOME/bin/cargo-osdk" ] || [ "$(cat "$stamp" 2>/dev/null || true)" != "$WORK" ]; then
@@ -142,6 +163,16 @@ mkdir -p "$(dirname "$OUT_ELF")"
 cp -f "$ELF" "$OUT_ELF"
 log "kernel payload: $OUT_ELF"
 ls -l "$OUT_ELF"
+
+# /proc/version is assembled from OSDK_BUILD_USERNAME / OSDK_BUILD_HOSTNAME at
+# compile time, so both literals end up in the payload. If redaction worked the
+# machine's own hostname must be absent from it.
+if grep -a -q "$(hostname)" "$ELF"; then
+  echo "warning: the building host's name ('$(hostname)') is still present in the" >&2
+  echo "         payload -- /proc/version would leak it." >&2
+  exit 1
+fi
+log "build metadata redacted; /proc/version will read ($DICTYONOS_BUILD_USER@$DICTYONOS_BUILD_HOST)"
 
 cat <<EOF
 

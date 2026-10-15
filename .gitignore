@@ -9,6 +9,9 @@ result-*
 /kernel/*
 !/kernel/.gitkeep
 
+# writable per-run VM disk staged by scripts/run-vm.sh
+.dictyonos-vm/
+
 # disk / archive images
 *.ext2
 *.img
