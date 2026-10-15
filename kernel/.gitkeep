@@ -1,0 +1,2 @@
+# Asterinas kernel payloads land here (gitignored).
+# Run scripts/build-kernel.sh to produce asterinas-osdk-bin.elf.

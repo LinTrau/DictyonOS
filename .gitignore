@@ -1,0 +1,30 @@
+# ---- build artifacts -------------------------------------------------
+build/
+/result
+/result-*
+result
+result-*
+
+# kernel payload produced by scripts/build-kernel.sh
+/kernel/*
+!/kernel/.gitkeep
+
+# disk / archive images
+*.ext2
+*.img
+*.cpio
+*.cpio.gz
+*.qcow2
+*.iso
+
+# logs and serial captures
+*.log
+qemu-serial.log
+
+# ---- tooling ---------------------------------------------------------
+.direnv/
+.envrc
+.pre-commit-config.yaml
+
+# keep the kernel/ placeholder documented but not its contents
+!/kernel/.gitkeep
