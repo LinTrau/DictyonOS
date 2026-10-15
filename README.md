@@ -143,7 +143,7 @@ In practice the flake is the supported entry point.
 The Asterinas kernel cannot be built by a normal Nix derivation: `cargo osdk
 build` needs crates.io, which the build sandbox does not have. It is therefore a
 *prebuilt artifact*, produced by `scripts/build-kernel.sh` into `./kernel/` and
-consumed through the `kernel@@ flake input (declared as `path:./kernel`, so the
+consumed through the `kernel` flake input (declared as `path:./kernel`, so the
 lock file stores the relative path `./kernel` and nothing host-specific).
 
 After (re)building the payload, refresh the input if Nix still sees the old one:
