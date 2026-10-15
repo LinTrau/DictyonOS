@@ -21,9 +21,19 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 
 KERNEL_ELF="${DICTYONOS_KERNEL_ELF:-$ROOT/kernel/asterinas-osdk-bin.elf}"
-ROOTFS="${DICTYONOS_ROOTFS:-$ROOT/build/rootfs.ext2}"
-CONFIG="${DICTYONOS_CONFIG:-$ROOT/build/result}"
-INITRAMFS="${DICTYONOS_INITRAMFS:-$ROOT/build/initramfs/initrd}"
+
+# When invoked through 'nix run' the packaged launcher exports all three of
+# these. Called directly from a checkout, resolve them from the flake instead
+# (a no-op once they have been built).
+if [ -z "${DICTYONOS_ROOTFS:-}" ] || [ -z "${DICTYONOS_CONFIG:-}" ] || [ -z "${DICTYONOS_INITRAMFS:-}" ]; then
+  ROOTFS="${DICTYONOS_ROOTFS:-$(nix build --no-link --print-out-paths "$ROOT#rootfs")}"
+  CONFIG="${DICTYONOS_CONFIG:-$(nix build --no-link --print-out-paths "$ROOT#system")}"
+  INITRAMFS="${DICTYONOS_INITRAMFS:-$(nix build --no-link --print-out-paths "$ROOT#initramfs")/initrd}"
+else
+  ROOTFS="$DICTYONOS_ROOTFS"
+  CONFIG="$DICTYONOS_CONFIG"
+  INITRAMFS="$DICTYONOS_INITRAMFS"
+fi
 
 MEM="${MEM:-8G}"
 SMP="${SMP:-1}"
