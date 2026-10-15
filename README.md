@@ -64,7 +64,7 @@ scripts/run-vm.sh        boots the result under QEMU
 ## Quick start
 
 `````````sh
-git clone <this repo> dictyonos
+git clone https://github.com/LinTrau/dictyonos
 cd dictyonos
 
 ./scripts/build-kernel.sh     # ~5 min; needs network for crates.io
