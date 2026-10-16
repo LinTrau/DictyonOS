@@ -89,6 +89,15 @@ if [ "$NET" != "0" ]; then
   EXTRA_CMDLINE="dictyonos.ssh_key_type=$KEY_TYPE dictyonos.ssh_key=$KEY_BLOB"
 fi
 
+# Fail immediately if another VM is still holding the forwarded port: QEMU
+# would otherwise abort with "Could not set up host forwarding rule" and the
+# run would sit through the full TIMEOUT for nothing.
+if [ "$NET" != "0" ] && (exec 3<>"/dev/tcp/127.0.0.1/$SSH_PORT") 2>/dev/null; then
+  echo "error: 127.0.0.1:$SSH_PORT is already in use (another dictyonos VM?)" >&2
+  echo "       stop it, or set SSH_PORT=<other port>" >&2
+  exit 1
+fi
+
 CMDLINE="${CMDLINE:-$(cat "$CONFIG/boot/kernel-params")}"
 CMDLINE="$CMDLINE $EXTRA_CMDLINE"
 
