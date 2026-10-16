@@ -17,10 +17,9 @@ let
   stage1 = pkgs.writeTextFile {
     name = "dictyonos-init";
     executable = true;
-    text = builtins.replaceStrings
-      [ "@busybox@" ]
-      [ "${busybox}" ]
-      (builtins.readFile ./stage1-init.sh);
+    text = builtins.replaceStrings [ "@busybox@" ] [ "${busybox}" ] (
+      builtins.readFile ./stage1-init.sh
+    );
   };
 in
 pkgs.makeInitrd {

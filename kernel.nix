@@ -22,7 +22,13 @@
 #     whoami(1) output for the cargo child it spawns. A cargo shim earlier on
 #     PATH is the only way to keep those -- and therefore /proc/version -- free
 #     of the build machine identity.
-{ lib, pkgs, asterinas, cargoConfig, vendor }:
+{
+  lib,
+  pkgs,
+  asterinas,
+  cargoConfig,
+  vendor,
+}:
 
 let
   buildUser = "dictyonos";
@@ -62,7 +68,10 @@ let
   '';
 
   shimDir = pkgs.linkFarm "dictyonos-cargo-shim" [
-    { name = "cargo"; path = cargoShim; }
+    {
+      name = "cargo";
+      path = cargoShim;
+    }
   ];
 in
 pkgs.stdenv.mkDerivation (finalAttrs: {

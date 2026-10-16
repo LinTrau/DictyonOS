@@ -145,7 +145,6 @@ let
     exit 0
   '';
 
-
   # Asterinas has no background writeback: dirty pages leave the guest only when
   # something calls syncfs() on the filesystem that owns them.  The system-wide
   # sync(2) is not usable for this -- it logs
@@ -331,7 +330,11 @@ let
           pkgs.doas
           lix
         ];
-        pathsToLink = [ "/bin" "/sbin" "/share" ];
+        pathsToLink = [
+          "/bin"
+          "/sbin"
+          "/share"
+        ];
         ignoreCollisions = true;
       };
 
@@ -381,7 +384,12 @@ let
           tmp = hostFinal.services.mount {
             where = "/tmp";
             fstype = "tmpfs";
-            options = [ "nodev" "nosuid" "mode=1777" "size=256m" ];
+            options = [
+              "nodev"
+              "nosuid"
+              "mode=1777"
+              "size=256m"
+            ];
           };
           # The root filesystem is attached read-only on purpose -- /nix/store
           # is a shared, content-addressed artifact and must never be written
@@ -445,8 +453,20 @@ let
   closureInfo = pkgs.closureInfo { rootPaths = [ host.configuration ]; };
 in
 {
-  inherit lib pkgs lix lixPkgs infuse system;
-  inherit initramfs kernelPayload haveKernel closureInfo;
+  inherit
+    lib
+    pkgs
+    lix
+    lixPkgs
+    infuse
+    system
+    ;
+  inherit
+    initramfs
+    kernelPayload
+    haveKernel
+    closureInfo
+    ;
   inherit (host) configuration;
   inherit host;
 

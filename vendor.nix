@@ -23,7 +23,12 @@
 # fixed-output derivation's result purely on the hash, so leaving the old hash in
 # place silently reuses the stale vendor tree and the build fails later with a
 # confusing "no matching package" error.
-{ pkgs, asterinas, rustToolchain, vendorHash ? "sha256-13M2v4fuD2JsSlu1Qvvd2CK90k4fHCq0u4xovX+JT28=" }:
+{
+  pkgs,
+  asterinas,
+  rustToolchain,
+  vendorHash ? "sha256-13M2v4fuD2JsSlu1Qvvd2CK90k4fHCq0u4xovX+JT28=",
+}:
 
 let
   kernelLock = asterinas.outPath + "/Cargo.lock";
@@ -35,16 +40,16 @@ let
   # lockfile, so that lock has to be part of the vendor tree as well.
   rustLibLock = rustToolchain + "/lib/rustlib/src/rust/library/Cargo.lock";
 
-  mergeTool = pkgs.writeText "merge-cargo-locks.py" (builtins.readFile ./scripts/merge-cargo-locks.py);
+  mergeTool = pkgs.writeText "merge-cargo-locks.py" (
+    builtins.readFile ./scripts/merge-cargo-locks.py
+  );
 
   # A directory whose only content is the merged Cargo.lock; the fetcher reads
   # ./Cargo.lock relative to the unpacked source.
-  mergedLockDir = pkgs.runCommand "dictyonos-cargo-locks"
-    { nativeBuildInputs = [ pkgs.python3 ]; }
-    ''
-      mkdir -p $out
-      python3 ${mergeTool} $out/Cargo.lock ${kernelLock} ${osdkLock} ${rustLibLock}
-    '';
+  mergedLockDir = pkgs.runCommand "dictyonos-cargo-locks" { nativeBuildInputs = [ pkgs.python3 ]; } ''
+    mkdir -p $out
+    python3 ${mergeTool} $out/Cargo.lock ${kernelLock} ${osdkLock} ${rustLibLock}
+  '';
 
   vendor = pkgs.rustPlatform.fetchCargoVendor {
     name = "dictyonos-cargo-vendor";
