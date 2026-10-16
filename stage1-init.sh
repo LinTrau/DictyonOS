@@ -148,5 +148,11 @@ $BB mount --move /proc "$NEWROOT/proc"
 $BB mount --move /sys  "$NEWROOT/sys"
 $BB mount --move /dev  "$NEWROOT/dev"
 
-$BB sync
+# Commit the state disk only. A system-wide sync(2) also walks the read-only
+# system disk and logs "block: failed to do Write on the device with error
+# status: IoError" for it, without reliably reaching /dev/vdb at all (gotcha
+# 11). syncfs on /var covers the state disk, and with it the overlay's upper
+# layer, which lives there.
+$BB sync -f "$NEWROOT/var" 2>/dev/null || true
+
 exec $BB switch_root "$NEWROOT" "$FOUND/boot/init"

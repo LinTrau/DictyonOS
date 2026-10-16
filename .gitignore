@@ -8,6 +8,9 @@ result-*
 # writable per-run VM disk staged by scripts/run-vm.sh
 .dictyonos-vm/
 
+# prebuilt release bundle assembled by hand for a GitHub release
+dist/
+
 # disk / archive images
 *.ext2
 *.img

@@ -50,15 +50,17 @@ ROOTFS="${DICTYONOS_ROOTFS:-}"
 CONFIG="${DICTYONOS_CONFIG:-}"
 INITRAMFS="${DICTYONOS_INITRAMFS:-}"
 
-# When invoked through nix run the launcher exports all four of these; called
-# directly from a checkout, ask the flake for them instead (a no-op once they
-# have been built).
-if [ -z "$KERNEL_ELF" ] || [ -z "$ROOTFS" ] || [ -z "$CONFIG" ] || [ -z "$INITRAMFS" ]; then
-  KERNEL_ELF="${KERNEL_ELF:-$(nix build --no-link --print-out-paths "$ROOT#kernel")/asterinas-osdk-bin.elf}"
-  ROOTFS="${ROOTFS:-$(nix build --no-link --print-out-paths "$ROOT#rootfs")}"
-  CONFIG="${CONFIG:-$(nix build --no-link --print-out-paths "$ROOT#system")}"
-  INITRAMFS="${INITRAMFS:-$(nix build --no-link --print-out-paths "$ROOT#initramfs")/initrd}"
+# Called through nix run, the launcher exports all four of these. Called from a
+# checkout, this asks the flake for whatever is missing (a no-op once built).
+# A prebuilt bundle exports the three artifacts and CMDLINE instead of CONFIG:
+# it has no sixos configuration closure to read boot/kernel-params from, and it
+# must not need Nix at all. So resolve each artifact on its own.
+if [ -z "${CMDLINE:-}" ] && [ -z "$CONFIG" ]; then
+  CONFIG="$(nix build --no-link --print-out-paths "$ROOT#system")"
 fi
+[ -n "$KERNEL_ELF" ] || KERNEL_ELF="$(nix build --no-link --print-out-paths "$ROOT#kernel")/asterinas-osdk-bin.elf"
+[ -n "$ROOTFS" ] || ROOTFS="$(nix build --no-link --print-out-paths "$ROOT#rootfs")"
+[ -n "$INITRAMFS" ] || INITRAMFS="$(nix build --no-link --print-out-paths "$ROOT#initramfs")/initrd"
 
 MEM="${MEM:-8G}"
 SMP="${SMP:-1}"
