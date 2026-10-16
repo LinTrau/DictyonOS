@@ -1,7 +1,8 @@
 # dictyonos — acceptance transcript
 
-Captured from the serial console of a stock, non-interactive boot of this
-commit. There is no manual step of any kind:
+Captured from the serial console of a stock, non-interactive boot of this tree.
+The commits since then are documentation-only, and every output still has the
+store path it had here. There is no manual step of any kind:
 
 ```sh
 git clone <this repo> && cd dictyonos
