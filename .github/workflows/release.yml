@@ -20,6 +20,12 @@ on:
 permissions:
   contents: write
 
+# Re-pushing a tag (to attach a fixed build, say) replaces the release in
+# place; only the newest run should touch its assets.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -42,14 +48,20 @@ jobs:
       - name: Assemble the prebuilt bundle
         run: nix shell nixpkgs#zstd --command ./scripts/make-release-bundle.sh "dictyonos-$GITHUB_REF_NAME-x86_64"
 
-      - name: Create the release
+      - name: Publish the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "$GITHUB_REF_NAME" \
-            --verify-tag \
-            --title "$(git for-each-ref --format='%(contents:subject)' "refs/tags/$GITHUB_REF_NAME")" \
-            --notes-from-tag \
-            "dist/dictyonos-$GITHUB_REF_NAME-x86_64-qemu.tar.zst" \
-            dist/asterinas-osdk-bin.elf \
-            dist/SHA256SUMS
+          title=$(git for-each-ref --format='%(contents:subject)' "refs/tags/$GITHUB_REF_NAME")
+          archive="dist/dictyonos-$GITHUB_REF_NAME-x86_64-qemu.tar.zst"
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            # The tag was moved, so the release already exists and holds the
+            # old build: replace its notes and its assets (--clobber).
+            gh release edit "$GITHUB_REF_NAME" --title "$title" --notes-from-tag
+            gh release upload "$GITHUB_REF_NAME" --clobber \
+              "$archive" dist/asterinas-osdk-bin.elf dist/SHA256SUMS
+          else
+            gh release create "$GITHUB_REF_NAME" --verify-tag \
+              --title "$title" --notes-from-tag \
+              "$archive" dist/asterinas-osdk-bin.elf dist/SHA256SUMS
+          fi
