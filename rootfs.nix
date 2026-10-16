@@ -63,7 +63,12 @@ pkgs.stdenvNoCC.mkDerivation {
     root="$TMPDIR/root"
     rm -rf "$root"
 
-    mkdir -p "$root/nix/store"
+    # /nix/store/.links is where Lix hardlinks identical files when it adds
+    # paths.  LocalStore's constructor calls createDirs() on it unconditionally
+    # -- even for a pure evaluation -- so on a read-only store the directory has
+    # to already exist or every nix invocation dies with
+    # "creating directory '/nix/store/.links': Read-only file system".
+    mkdir -p "$root/nix/store/.links"
     mkdir -p "$root/nix/var/nix/profiles" "$root/nix/var/nix/gcroots" \
              "$root/nix/var/nix/db" "$root/nix/var/nix/temproots"
     mkdir -p "$root/proc" "$root/sys" "$root/dev" "$root/run" "$root/tmp" \

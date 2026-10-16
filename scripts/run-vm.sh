@@ -192,7 +192,7 @@ if [ "${AUTO:-0}" = "1" ]; then
     # and every service is up. If not, it aborted -- trace it, because that
     # leaves the machine with nothing but the s6-linux-init early getty and no
     # way to tell why from the console.
-    echo "echo ---- activate ----; if [ ! -d /run/s6-rc ]; then bash -x $CONFIG/bin/activate 2>&1 | tail -30; else echo activation-completed; fi"
+    echo "echo ---- activate ----; if [ ! -d /run/s6-rc ]; then A=$CONFIG/bin/activate; \$(head -1 \$A | cut -d' ' -f1) -x \$A 2>&1 | tail -40; else echo activation-completed; fi"
     sleep 8
     echo "echo ---- disks ----; mount | grep -E 'vda|vdb|/var'"
     sleep 2
