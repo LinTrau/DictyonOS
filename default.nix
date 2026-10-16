@@ -175,13 +175,31 @@ let
       echo "dropbear: no authorized key; pass dictyonos.ssh_key=... or write $AUTH"
     fi
 
-    # Bind IPv4 explicitly.  dropbear's "-p 22" asks getaddrinfo(AI_PASSIVE)
-    # for every address family, and on Asterinas it only ever gets the IPv6
-    # wildcard back: setsockopt(IPV6_V6ONLY) fails and bind(::) fails with
-    # EADDRNOTAVAIL, after which dropbear gives up with "Early exit: No
-    # listening ports available" and never falls back to IPv4.  An explicit
-    # IPv4 address takes getaddrinfo out of the picture entirely.
-    set -- -F -E -s -p 0.0.0.0:22
+    # Bind the interface's own address, not the wildcard.  Asterinas resolves
+    # bind() addresses in its local routing table (route::lookup_local_iface)
+    # and rejects anything that is not a local address, so both bind(0.0.0.0:22)
+    # and bind(::) fail with EADDRNOTAVAIL ("Cannot assign requested address").
+    # Plain "-p 22" is worse still: dropbear would take the IPv6 wildcard from
+    # getaddrinfo, fail, and give up with "No listening ports available" without
+    # ever trying IPv4.
+    #
+    # The address is not known until the DHCP client has a lease, and this
+    # service may well start first, so wait for it -- a few seconds of waiting
+    # in a longrun costs nothing.
+    addr=""
+    tries=0
+    while [ "$tries" -lt 60 ]; do
+      addr="$(${pkgs.busybox}/bin/ip -4 addr show 2>/dev/null | ${pkgs.busybox}/bin/awk '/inet /{print $2}' | ${pkgs.busybox}/bin/cut -d/ -f1 | ${pkgs.busybox}/bin/grep -v '^127[.]' | ${pkgs.busybox}/bin/head -1)"
+      [ -n "$addr" ] && break
+      sleep 1
+      tries=$((tries + 1))
+    done
+    if [ -z "$addr" ]; then
+      echo "dropbear: no IPv4 address after 60s; listening on loopback only"
+      addr=127.0.0.1
+    fi
+    echo "dropbear: listening on $addr:22"
+    set -- -F -E -s -p "$addr:22"
 
     # A host key on the state disk survives reboots; without one, fall back to
     # ephemeral in-memory keys.

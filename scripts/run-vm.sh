@@ -210,7 +210,10 @@ if [ "${AUTO:-0}" = "1" ]; then
     sleep 3
     echo "nix eval --expr '1 + 1'"
     sleep 4
-    echo "echo ---- sync ----; sync; echo sync-exit=\$?"
+    # Prove the state disk is a real, writable, persistent filesystem: write a
+    # file to /var (which stage1 grafted over /dev/vdb), sync it, read it back.
+    # The host-side check that it survived is a debugfs read of state.ext2.
+    echo "echo ---- persist ----; echo persisted > /var/persist-test; sync; cat /var/persist-test; ls -l /var/persist-test"
     sleep 3
     echo "echo DICTYONOS-DONE"
     sleep 2
