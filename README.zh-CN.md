@@ -39,7 +39,7 @@
 
 说「内存安全的发行版」就过头了：busybox、`s6`、dropbear、Lix 都不是内存安全的，而且以
 root 运行。准确一点的说法是：最庞大的那个特权组件，也就是内核，恰好是内存安全的。给个
-量级：内核体积 19.9 MB，Nix closure 就是它自己；用户空间 closure 1011.8 MB，装进 639 MiB
+量级：内核体积 19.9 MB，Nix closure 就是它自己；用户空间 closure 985.3 MB，装进 596 MiB
 的镜像。
 
 ### 从包到服务只有一套心智模型
@@ -137,7 +137,7 @@ cd dictyonos
 nix run                       # 构建内核 + initramfs + rootfs，然后启动 QEMU
 ```
 
-第一次构建会编译 Asterinas 内核、从源码构建 Lix（坑 13），再打包出 639 MiB 的 ext2 镜像，
+第一次构建会编译 Asterinas 内核、从源码构建 Lix（坑 13），再打包出 596 MiB 的 ext2 镜像，
 全都发生在 Nix sandbox 里，给它几分钟。之后：
 
 ```sh

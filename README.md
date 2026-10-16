@@ -48,7 +48,7 @@ runtime.
 Lix are not memory-safe, and they run as root. The narrower claim is that the
 *large* privileged component, the kernel, is the memory-safe one. For scale:
 the kernel payload is 19.9 MB and its Nix closure is exactly itself, while the
-userspace closure is 1011.8 MB packed into a 639 MiB image.
+userspace closure is 985.3 MB packed into a 596 MiB image.
 
 ### One mental model, from packages to services
 
@@ -161,7 +161,7 @@ nix run                       # builds kernel + initramfs + rootfs, then boots Q
 ```
 
 The first build compiles the Asterinas kernel, builds Lix from source (gotcha 13)
-and packs a 639 MiB ext2 image, all inside the Nix sandbox: give it a few
+and packs a 596 MiB ext2 image, all inside the Nix sandbox: give it a few
 minutes. Afterwards:
 
 ```sh
