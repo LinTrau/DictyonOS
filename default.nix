@@ -331,6 +331,7 @@ let
           pkgs.s6-rc
           pkgs.s6-portable-utils
           pkgs.doas
+          pkgs.dropbear
           lix
         ];
         pathsToLink = [

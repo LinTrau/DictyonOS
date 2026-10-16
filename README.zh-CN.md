@@ -160,7 +160,8 @@ ssh -p 2222 root@127.0.0.1    # 启动器会生成一次性密钥并注入 guest
 
 ``````````sh
 nix run                                  # 交互式串口控制台
-AUTO=1 nix run                           # 启动、跑验收检查、退出
+AUTO=1 nix run                           # 验收:启动两次,然后退出
+AUTO=1 BOOT2=0 nix run                   # 只跑两次启动中的第一次
 EPHEMERAL=1 nix run                      # 先丢弃状态盘,从空白开始
 NET=0 nix run                            # 不带网卡启动(也就没有 ssh)
 SSH_PORT=2200 nix run                    # 换一个宿主端口转发
@@ -170,7 +171,8 @@ MEM=16G SMP=4 nix run                    # 更多资源
 
 常用环境变量:`DICTYONOS_KERNEL_ELF`、`DICTYONOS_ROOTFS`、`DICTYONOS_INITRAMFS`、`DICTYONOS_CONFIG`、
 `DICTYONOS_STATE`、`DICTYONOS_WORKDIR`、`CMDLINE`、`NET`、`MEM`、`SMP`、`CPU`、`TIMEOUT`、`QEMU_BIN`、
-`ENABLE_KVM`、`AUTO`、`AUTO_WAIT`、`SERIAL_LOG`、`SSH_KEY`、`SSH_PORT`、`SSH_WAIT`。
+`ENABLE_KVM`、`AUTO`、`AUTO_WAIT`、`BOOT2`、`STEP_WAIT`、`HALT_WAIT`、`SERIAL_LOG`、
+`SERIAL_LOG_BOOT2`、`SERIAL_LOG_HOST`、`SSH_KEY`、`SSH_PORT`、`SSH_WAIT`。
 
 调试时 `CMDLINE` 很好用:追加 `loglevel=info` 就能恢复 Asterinas 的逐系统调用日志。
 
@@ -303,12 +305,26 @@ remap 掉:否则 Nix 的引用扫描会顺着它们把 4 GiB 的闭包拖进镜�
 AUTO=1 nix run
 ``````````
 
-它会在串口控制台上运行 `uname -a`、`cat /proc/version`、`readlink /proc/1/exe`、完整的 `ps aux`,
-确认 sixos 的 activate 跑到了最后,输出每个长驻服务的 `s6-svstat` 并 tail 它们在 `/var/log` 下的日志,
-展示两块盘与网络配置,运行 `nix --version` 与 `nix eval --expr '1 + 1'`,并在状态盘上做一次
-写入/`sync -f`/读回。与此同时它并行地从宿主机验证一次真实的 ssh 握手并通过它执行命令。
-全部记录写到 `./serial.log`,一次完整的抓取见 [ACCEPTANCE.md](ACCEPTANCE.md);
-状态盘那一项在宿主机侧的对应检查是用 `debugfs` 直接读 `.dictyonos-vm/state.ext2`。
+它会把虚机启动**两次**。第一次在串口控制台上跑检查:`uname -a`、`cat /proc/version`、
+`readlink /proc/1/exe`、完整的 `ps aux`,确认 sixos 的 activate 跑到了最后,输出每个长驻服务的
+`s6-svstat` 并 tail 它们在 `/var/log` 下的日志,展示两块盘与网络配置,运行 `nix --version` 与
+`nix eval --expr '1 + 1'`,并在状态盘上做一次写入/`sync -f`/读回。与此同时宿主机并行地验证一次
+真实的 ssh 握手并通过它执行命令。
+
+第二次启动是一台全新的虚机,挂的是**同一块**状态盘:它必须仍然读得到 `/var/persist-early` 与
+`/var/persist-late` 且内容不变,并且必须出示同一把 dropbear 主机密钥——这才证明那把密钥是从盘上复用的,
+而不是重新生成的。宿主机另外提供自己的证据:对镜像跑 `e2fsck -fn`,不挂载直接用 `debugfs` 读取
+(guest 是 halt 而不是关机,所以镜像在退出时并没有被同步过),以及比较两次启动之间 `ssh-keyscan` 看到的
+客户端侧主机密钥。只有以上全部成立,运行最后才会打印 `REBOOT-PERSISTENCE-OK`。
+
+这些命令是一条一条打进 guest 的 getty 的,每一步结尾都带一个宿主机等待的哨兵串。固定 sleep 不够用:
+其中一步故意 sleep 35 秒等 `state-sync` 跳一次,而抢跑的宿主机输入的命令会被 tty 回声到它们对应的输出
+之前,导致日志交错,并让后来读日志的人看到被截断的内容。
+
+一次运行会留下三份记录:`./serial.log`(第一次启动)、`./serial-boot2.log`(第二次启动)与
+`./serial.host.log`(ssh、`e2fsck`、`debugfs`),一次完整的抓取见 [ACCEPTANCE.md](ACCEPTANCE.md)。
+[.github/workflows/ci.yml](.github/workflows/ci.yml) 在每次 push 与 PR 时跑同一套验收,并且无论成败都
+上传这三份记录。
 
 ## 已知限制
 
@@ -319,7 +335,8 @@ AUTO=1 nix run
 * **没有 INET 通配绑定**(见第 8 条坑):想要"监听所有网卡"的服务必须自己枚举手上的地址。
 * **状态盘的持久化跑在 30 秒定时器上。** Asterinas 不做后台回写(第 11 条坑),所以 `/var` 是由 `state-sync`
   服务提交的,而不是内核;虚机消失前最后半分钟内写的东西会丢。验收把这条机制两头都证明了:guest 写入、`sync -f`、
-  读回 `/var/persist-early`,而宿主机随后在 `state.ext2` 里找到了这个文件。
+  读回 `/var/persist-early`;guest 故意不同步 `/var/persist-late`,它靠服务跳一次才落到盘上;
+  第二次启动再把两者都读回来。
 * `uname -a` 报 `Linux 5.13.0` 是刻意的——Asterinas 对外宣布的是它模拟的 Linux ABI。
   说实话的是 `/proc/version`:它写的是 Rust 编译器,而不是 C 编译器。
 * 系统调用 334(`rseq`)未实现,每个进程启动时记一条日志;glibc 能优雅处理 `ENOSYS`。

@@ -36,6 +36,10 @@
 #       evidence (ssh, e2fsck, debugfs) are written
 #   MEM, SMP, CPU, QEMU_BIN, ENABLE_KVM, NET, AUTO, AUTO_WAIT, BOOT2, TIMEOUT,
 #   STEP_WAIT, HALT_WAIT, CMDLINE
+#
+# HALT_WAIT has to cover the whole scripted sequence: the guest only halts after
+# the acceptance steps have been typed and answered, and the host stops the
+# machine the moment it sees the halt.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -205,7 +209,7 @@ verify_ssh() {
 # until `timeout` fires, printing a misleading "terminating on signal 15 ...
 # (timeout)" line into the transcript. Wait for the halt and stop the machine.
 wait_for_halt() {
-  local deadline=$((SECONDS + ${HALT_WAIT:-60}))
+  local deadline=$((SECONDS + ${HALT_WAIT:-240}))
   while [ "$SECONDS" -lt "$deadline" ]; do
     grep -q "Halting the machine" "$1" 2>/dev/null && return 0
     sleep 1
@@ -239,20 +243,25 @@ stop_vm() {
 # without mounting it (the guest halts rather than shutting down cleanly) and
 # e2fsck -fn reports the metadata state of the image.
 dump_state() {
-  local label="$1" f
+  local label="$1" f base
+  base="$(basename "$STATE")"
   {
     echo
-    echo "== $label: e2fsck -fn $STATE =="
-    e2fsck -fn "$STATE" 2>&1 || echo "e2fsck exit status: $?"
+    # e2fsck prints the path it was given, so cd into the directory and hand it
+    # the bare name: the transcript then carries no absolute host path.
+    echo "== $label: e2fsck -fn $base =="
+    if ! (cd "$(dirname "$STATE")" && LC_ALL=C e2fsck -fn "$base") 2>&1; then
+      echo "e2fsck exit status: $?"
+    fi
     for f in /persist-early /persist-late /log/state-sync/current; do
       echo "== $f =="
-      debugfs -R "cat $f" "$STATE" 2>/dev/null || true
+      LC_ALL=C debugfs -R "cat $f" "$STATE" 2>/dev/null || true
     done
     echo "== /lib/dropbear =="
-    debugfs -R "ls -l /lib/dropbear" "$STATE" 2>/dev/null || true
+    LC_ALL=C debugfs -R "ls -l /lib/dropbear" "$STATE" 2>/dev/null || true
   } | tee -a "$HOST_LOG"
   rm -f "$WORKDIR/hostkey.file.$label"
-  debugfs -R "dump /lib/dropbear/dropbear_ed25519_host_key $WORKDIR/hostkey.file.$label" \
+  LC_ALL=C debugfs -R "dump /lib/dropbear/dropbear_ed25519_host_key $WORKDIR/hostkey.file.$label" \
     "$STATE" >/dev/null 2>&1 || true
 }
 
@@ -277,8 +286,8 @@ compare_host_keys() {
 # dropbear must have reused rather than regenerated.
 compare_state() {
   local rc=0 early late keys
-  early="$(debugfs -R 'cat /persist-early' "$STATE" 2>/dev/null | tr -d '\r\n')"
-  late="$(debugfs -R 'cat /persist-late' "$STATE" 2>/dev/null | tr -d '\r\n')"
+  early="$(LC_ALL=C debugfs -R 'cat /persist-early' "$STATE" 2>/dev/null | tr -d '\r\n')"
+  late="$(LC_ALL=C debugfs -R 'cat /persist-late' "$STATE" 2>/dev/null | tr -d '\r\n')"
   if cmp -s "$WORKDIR/hostkey.file.boot1" "$WORKDIR/hostkey.file.boot2"; then
     keys="byte-identical to boot 1"
   else
@@ -340,7 +349,9 @@ auto() {
 auto_boot1() {
   sleep "${AUTO_WAIT:-30}"
   echo ""
-  auto "echo ==== DICTYONOS ACCEPTANCE (boot 1) ===="
+  # No parentheses: the console shell is busybox ash, and an unquoted "(" in a
+  # typed-in line makes it abort the whole line with a syntax error.
+  auto "echo ==== DICTYONOS ACCEPTANCE boot 1 ===="
   auto "uname -a"
   auto "cat /proc/version 2>/dev/null; cat /proc/1/comm 2>/dev/null"
   auto "echo ---- PID 1 ----; readlink /proc/1/exe; ps aux 2>/dev/null"
@@ -374,14 +385,14 @@ auto_boot1() {
 auto_boot2() {
   sleep "${AUTO_WAIT:-30}"
   echo ""
-  auto "echo ==== DICTYONOS ACCEPTANCE (boot 2, same state disk) ===="
+  auto "echo ==== DICTYONOS ACCEPTANCE boot 2, same state disk ===="
   auto "echo ---- persistence ----; cat /var/persist-early; cat /var/persist-late; ls -l /var/persist-early /var/persist-late"
   auto "echo ---- host key ----; dropbearkey -y -f /var/lib/dropbear/dropbear_ed25519_host_key | tail -2"
   auto "echo ---- state-sync log ----; tail -3 /var/log/state-sync/current"
   # The verdict is printed with its first word split off, so that this command
   # line -- which the tty echoes back -- does not itself contain the string the
   # host searches the transcript for.
-  auto "if [ \"$(cat /var/persist-early 2>/dev/null)\" = early ] && [ \"$(cat /var/persist-late 2>/dev/null)\" = late ]; then echo REBOOT-PERSISTENCE-\"OK\"; else echo REBOOT-PERSISTENCE-\"FAILED\"; fi"
+  auto "if [ \"\$(cat /var/persist-early 2>/dev/null)\" = early ] && [ \"\$(cat /var/persist-late 2>/dev/null)\" = late ]; then echo REBOOT-PERSISTENCE-\"OK\"; else echo REBOOT-PERSISTENCE-\"FAILED\"; fi"
   auto "echo DICTYONOS-DONE"
   sleep 1
   echo "poweroff -f"
@@ -400,6 +411,7 @@ run_boot() {
     verify_ssh "$keys" 2>&1 | tee -a "$HOST_LOG" || rc=$?
   fi
   if wait_for_halt "$log"; then
+    echo "==> the guest halted; stopping the machine" | tee -a "$HOST_LOG"
     stop_vm
   else
     echo "==> the guest never halted; waiting for TIMEOUT" >&2

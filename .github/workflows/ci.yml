@@ -52,9 +52,10 @@ jobs:
       # checks and writes /var/persist-early and /var/persist-late, the second
       # has to find them again and has to present the same dropbear host key.
       # 6G for the guest, because the runner has 16G and the Nix daemon lives
-      # there too.
+      # there too.  The generous waits cost nothing on KVM and cover the TCG
+      # fallback, where every guest step takes several times as long.
       - name: Run the acceptance (boot, ssh, reboot, persistence)
-        run: AUTO=1 MEM=6G TIMEOUT=600 nix run
+        run: AUTO=1 MEM=6G TIMEOUT=900 STEP_WAIT=300 HALT_WAIT=900 nix run
 
       - name: Upload the transcripts
         if: always()

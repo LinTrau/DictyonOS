@@ -203,7 +203,8 @@ ssh -p 2222 root@127.0.0.1    # the launcher generates a throwaway key and injec
 
 ``````````sh
 nix run                                  # interactive serial console
-AUTO=1 nix run                           # boot, run the acceptance checks, exit
+AUTO=1 nix run                           # the acceptance: two boots, then exit
+AUTO=1 BOOT2=0 nix run                   # only the first of the two boots
 EPHEMERAL=1 nix run                      # throw the state disk away first
 NET=0 nix run                            # boot without a NIC (and without ssh)
 SSH_PORT=2200 nix run                    # forward a different host port
@@ -214,8 +215,9 @@ MEM=16G SMP=4 nix run                    # more resources
 Useful environment variables: `DICTYONOS_KERNEL_ELF`, `DICTYONOS_ROOTFS`,
 `DICTYONOS_INITRAMFS`, `DICTYONOS_CONFIG`, `DICTYONOS_STATE`,
 `DICTYONOS_WORKDIR`, `CMDLINE`, `NET`, `MEM`, `SMP`, `CPU`, `TIMEOUT`,
-`QEMU_BIN`, `ENABLE_KVM`, `AUTO`, `AUTO_WAIT`, `SERIAL_LOG`, `SSH_KEY`,
-`SSH_PORT`, `SSH_WAIT`.
+`QEMU_BIN`, `ENABLE_KVM`, `AUTO`, `AUTO_WAIT`, `BOOT2`, `STEP_WAIT`,
+`HALT_WAIT`, `SERIAL_LOG`, `SERIAL_LOG_BOOT2`, `SERIAL_LOG_HOST`,
+`SSH_KEY`, `SSH_PORT`, `SSH_WAIT`.
 
 `CMDLINE` is handy for debugging: appending `loglevel=info` to it restores
 Asterinas' per-syscall trace.
@@ -416,16 +418,35 @@ closure into the image instead of a 20 MB one.
 AUTO=1 nix run
 ``````````
 
-boots the machine and, on the serial console, runs `uname -a`,
-`cat /proc/version`, `readlink /proc/1/exe`, the full `ps aux`, checks that
-sixos' activation reached the end, reports `s6-svstat` for every longrun and
-tails their logs under `/var/log`, shows both disks and the network
-configuration, runs `nix --version` and `nix eval --expr '1 + 1'`, and does a
-write/`sync -f`/read-back round-trip on the state disk. In parallel it checks a
-real ssh handshake from the host and runs a command through it. Everything is
-written to `./serial.log`. A captured run is in [ACCEPTANCE.md](ACCEPTANCE.md),
-and the host-side half of the state-disk check is a `debugfs` read of
-`.dictyonos-vm/state.ext2`.
+boots the machine **twice**. The first boot runs the checks on the serial
+console: `uname -a`, `cat /proc/version`, `readlink /proc/1/exe`, the full
+`ps aux`, whether sixos' activation reached the end, `s6-svstat` for every
+longrun and the tail of their logs under `/var/log`, both disks and the network
+configuration, `nix --version` and `nix eval --expr '1 + 1'`, and a
+write/`sync -f`/read-back round-trip on the state disk. In parallel the host
+checks a real ssh handshake and runs a command through it.
+
+The second boot starts a fresh machine on the *same* state disk and has to find
+`/var/persist-early` and `/var/persist-late` still there with their contents,
+and has to present the same dropbear host key -- which is what proves the key was
+reused from the disk rather than regenerated. The host contributes evidence of
+its own: `e2fsck -fn` on the image, `debugfs` reads taken without mounting it
+(the guest halts rather than shutting down, so the image is never synced on the
+way out), and the client-visible host key from `ssh-keyscan` compared across the
+two boots. The run prints `REBOOT-PERSISTENCE-OK` only when all of that holds.
+
+The commands are typed into the guest's getty one step at a time, and every step
+ends with a sentinel the host waits for. Fixed sleeps are not enough: one step
+deliberately sleeps 35 seconds to let `state-sync` tick, and a host that runs
+ahead sees its own commands echoed back by the tty before the output they belong
+to -- which interleaves the transcript and truncates it for whoever reads it
+later.
+
+Three transcripts come out of it -- `./serial.log` (boot 1),
+`./serial-boot2.log` (boot 2) and `./serial.host.log` (ssh, `e2fsck`,
+`debugfs`) -- and a captured run is in [ACCEPTANCE.md](ACCEPTANCE.md).
+[.github/workflows/ci.yml](.github/workflows/ci.yml) runs the same acceptance on
+every push and pull request, and uploads those transcripts either way.
 
 ## Known limitations
 
@@ -446,8 +467,9 @@ and the host-side half of the state-disk check is a `debugfs` read of
   background writeback (gotcha 11), so `/var` is committed by the `state-sync`
   service rather than by the kernel, and anything written in the last half
   minute before the VM dies is lost. The acceptance proves the mechanism both
-  ways: the guest writes, `sync -f`s and reads back `/var/persist-early`, and
-  the host then finds that file inside `state.ext2`.
+  ways: the guest writes `/var/persist-early`, `sync -f`s it and reads it back;
+  `/var/persist-late` is deliberately never synced by the guest and lands on the
+  disk because the service ticked; and the second boot reads both of them back.
 
 ## License & Upstream Credits
 
