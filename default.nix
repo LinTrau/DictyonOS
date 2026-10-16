@@ -175,7 +175,13 @@ let
       echo "dropbear: no authorized key; pass dictyonos.ssh_key=... or write $AUTH"
     fi
 
-    set -- -F -E -s -p 22
+    # Bind IPv4 explicitly.  dropbear's "-p 22" asks getaddrinfo(AI_PASSIVE)
+    # for every address family, and on Asterinas it only ever gets the IPv6
+    # wildcard back: setsockopt(IPV6_V6ONLY) fails and bind(::) fails with
+    # EADDRNOTAVAIL, after which dropbear gives up with "Early exit: No
+    # listening ports available" and never falls back to IPv4.  An explicit
+    # IPv4 address takes getaddrinfo out of the picture entirely.
+    set -- -F -E -s -p 0.0.0.0:22
 
     # A host key on the state disk survives reboots; without one, fall back to
     # ephemeral in-memory keys.
