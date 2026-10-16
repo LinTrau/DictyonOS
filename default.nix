@@ -287,6 +287,22 @@ let
         "etc/profile" = profile;
       };
 
+      # iproute2's routing-table names. sixos' activation links
+      # /etc/iproute2 -> /run/current-system/etc/iproute2 on first boot, and on a
+      # read-only root that `ln` cannot succeed -- under `set -e` it would kill
+      # activation before s6-rc-init. Baking the file into the configuration makes
+      # the link rootfs.nix creates valid, so the linkify pass is skipped
+      # entirely. hostPrev.etc has to be carried over by hand because extension
+      # sets are merged shallowly (same reason as `tags` and `boot` above).
+      etc = (hostPrev.etc or { hosts = { }; }) // {
+        iproute2.rt_tables = {
+          local = 255;
+          main = 254;
+          default = 253;
+          unspec = 0;
+        };
+      };
+
       doas-conf = [ "permit nopass root" ];
 
       # Deliberately minimal target set: no mdevd (Asterinas has no netlink

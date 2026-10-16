@@ -97,11 +97,22 @@ pkgs.stdenvNoCC.mkDerivation {
     mkdir -p "$root/etc/nix"
     cp -f "$cfg/etc/nix/nix.conf" "$root/etc/nix/nix.conf"
 
-    # sixos' activation "linkifies" /etc/iproute2 too, and on a read-only /etc a
-    # missing link would make it fail. The configuration always generates the
-    # directory (see the etc.iproute2 setting in default.nix), so link it here
-    # like every other /etc entry.
     ln -sfn "$cfg/etc/iproute2" "$root/etc/iproute2"
+
+    # Every one of these links must resolve, or sixos' activation will try to
+    # (re)create it with `ln -sfT` on a read-only filesystem.  Under `set -e` that
+    # abort lands before s6-rc-init, and the machine ends up stuck in the
+    # s6-linux-init early getty with no services and no error on the console --
+    # so make it a build failure instead of a boot failure.
+    # (/bin/sh and /usr/bin/env are excluded: they point through
+    # /run/current-system, which only exists at runtime.)
+    for l in etc/passwd etc/group etc/services etc/protocols etc/hosts \
+             etc/doas.conf etc/profile etc/iproute2; do
+      if [ ! -e "$root/$l" ]; then
+        echo "dictyonos-rootfs: /$l is a dangling symlink -- activation would abort" >&2
+        exit 1
+      fi
+    done
 
     # 3. root's home lives on the writable state disk, so the console shell and
     #    sshd have a writable HOME.
