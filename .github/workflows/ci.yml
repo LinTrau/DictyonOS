@@ -1,0 +1,69 @@
+# The acceptance test is the point of this project: a machine that boots a
+# framekernel, comes up under s6, answers ssh and keeps its state across a
+# reboot.  So CI runs exactly what the README tells a person to run -- no
+# narrower "unit test" path that could pass while the image is broken.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A new push to the same branch makes the previous run pointless.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      # QEMU should use KVM when it can: without it the machine still boots, but
+      # in TCG emulation, which turns a two minute acceptance run into a very
+      # slow one.  GitHub's linux runners expose /dev/kvm to root only on some
+      # images, hence the udev rule; if the device is simply absent the script
+      # notices and emulates instead.
+      - name: Make /dev/kvm usable
+        run: |
+          if [ ! -e /dev/kvm ]; then
+            echo "no /dev/kvm on this runner; the VM will fall back to TCG"
+            exit 0
+          fi
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-dictyonos-kvm.rules >/dev/null
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+          ls -l /dev/kvm
+
+      - name: Evaluate every flake output
+        run: nix flake check --all-systems
+
+      - name: Build the kernel, the initramfs and the rootfs
+        run: nix build .#kernel .#initramfs .#rootfs
+
+      # Boots twice against the same state disk: the first boot runs the
+      # checks and writes /var/persist-early and /var/persist-late, the second
+      # has to find them again and has to present the same dropbear host key.
+      # 6G for the guest, because the runner has 16G and the Nix daemon lives
+      # there too.
+      - name: Run the acceptance (boot, ssh, reboot, persistence)
+        run: AUTO=1 MEM=6G TIMEOUT=600 nix run
+
+      - name: Upload the transcripts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: acceptance-logs
+          path: |
+            serial.log
+            serial-boot2.log
+            serial.host.log
+            .dictyonos-vm/id_ed25519.pub
+          if-no-files-found: warn

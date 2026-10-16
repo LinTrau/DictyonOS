@@ -86,7 +86,10 @@ let
   nixConf = pkgs.writeText "dictyonos-nix.conf" ''
     sandbox = false
     build-users-group =
-    require-sigs = false
+    # Signature checking stays on: everything this machine evaluates comes from
+    # cache.nixos.org, whose key is pinned just below.  Comment the
+    # require-sigs line in only to read from a local, unsigned store.
+    # require-sigs = false
     experimental-features = nix-command flakes
     substituters = https://cache.nixos.org/
     trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=

@@ -90,11 +90,13 @@
       };
 
       # One-shot launcher: bakes every artifact path in and defers to the
-      # script, which still accepts the DICTYONOS_* overrides. e2fsprogs and
-      # openssh are put on PATH because the launcher creates the state disk and
-      # the throwaway ssh keypair.
+      # script, which still accepts the DICTYONOS_* overrides. qemu, e2fsprogs
+      # and openssh are put on PATH because the launcher runs the machine, makes
+      # the state disk and generates the throwaway ssh keypair -- a host that has
+      # nothing but Nix installed can run this flake as-is. (export
+      # QEMU_BIN=/usr/bin/qemu-system-x86_64 to use the host's qemu instead.)
       runVm = dictyonos.pkgs.writeShellScriptBin "dictyonos-run-vm" ''
-        export PATH="${dictyonos.pkgs.e2fsprogs}/bin:${dictyonos.pkgs.openssh}/bin:$PATH"
+        export PATH="${dictyonos.pkgs.qemu}/bin:${dictyonos.pkgs.e2fsprogs}/bin:${dictyonos.pkgs.openssh}/bin:$PATH"
         export DICTYONOS_KERNEL_ELF=${kernel}/asterinas-osdk-bin.elf
         export DICTYONOS_INITRAMFS=${dictyonos.initramfs}/initrd
         export DICTYONOS_ROOTFS=${rootfs}
