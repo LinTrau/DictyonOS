@@ -54,7 +54,14 @@ let
     overlays = sixosOverlays;
   };
 
-  lix = lixPkgs.lixPackageSets.stable.lix;
+  # Lix wraps every local build in a seccomp BPF filter, and 2.90 removed the
+  # `filter-syscalls` option that used to switch it off.  Asterinas implements
+  # no seccomp(2), so the first in-guest `nix build` dies with
+  #   error: unable to load seccomp BPF program: Function not implemented
+  # Lix' own meson switch is the documented way out.  It costs a Lix build
+  # from source instead of a substitution: that is a deliberate price for
+  # having a store the guest can actually write to.
+  lix = lixPkgs.lixPackageSets.stable.lix.override { withLibseccomp = false; };
 
   # ---------------- kernel --------------------------------------------
 
@@ -93,6 +100,9 @@ let
     experimental-features = nix-command flakes
     substituters = https://cache.nixos.org/
     trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=
+    # Without this Lix finds no trust store: a substitution from
+    # cache.nixos.org fails with "unable to get local issuer certificate".
+    ssl-cert-file = ${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt
   '';
 
   profile = pkgs.writeText "dictyonos-profile" ''
@@ -332,6 +342,11 @@ let
           pkgs.s6-portable-utils
           pkgs.doas
           pkgs.dropbear
+          # Lix verifies TLS with libcurl, and the image would otherwise ship no
+          # trust store at all: every https:// substitution (and any other
+          # https client in the guest) fails with "unable to get local issuer
+          # certificate". nix.conf points Lix straight at this bundle.
+          pkgs.cacert
           lix
         ];
         pathsToLink = [
@@ -392,15 +407,19 @@ let
               "nodev"
               "nosuid"
               "mode=1777"
-              "size=256m"
+              # Generous, because a guest-side Lix build unpacks and
+              # assembles its output under TMPDIR.
+              "size=1g"
             ];
           };
-          # The root filesystem is attached read-only on purpose -- /nix/store
-          # is a shared, content-addressed artifact and must never be written
-          # to. Mutable state lives on a separate disk that stage1 grafts over
-          # /var. Remounting / read-write would therefore both fail (EROFS) and
-          # defeat the design, so like proc/sys this is an empty bundle that
-          # exists only to satisfy the after-references other targets make.
+          # The root filesystem is attached read-only on purpose: the system
+          # image is a shared artifact, and everything mutable lives on the
+          # state disk that stage1 grafts over /var. Remounting / read-write
+          # would both fail (EROFS) and defeat the design. The one part of the
+          # image that has to be writable -- /nix/store -- is handled there
+          # instead, as an overlay with its upper layer under /var; see
+          # stage1-init.sh. So like proc/sys this is an empty bundle that exists
+          # only to satisfy the after-references other targets make.
           "" = hostFinal.six.mkBundle { };
         };
 

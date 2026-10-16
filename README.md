@@ -2,7 +2,7 @@
 
 [**English**](README.md) | [简体中文](README.zh-CN.md)
 
-A bootable QEMU machine that fuses three independent upstream projects:
+A bootable QEMU machine that fuses three upstream projects:
 
 | layer | upstream | role |
 | --- | --- | --- |
@@ -10,117 +10,96 @@ A bootable QEMU machine that fuses three independent upstream projects:
 | init + userland | [sixos](https://codeberg.org/amjoseph/sixos) + [infuse.nix](https://codeberg.org/amjoseph/infuse.nix) | `s6` / `s6-rc` instead of systemd; infuse combinators instead of the NixOS module system |
 | package manager | [Lix](https://lix.systems/) | the system-default `nix` |
 
-The result boots to a serial root shell with `s6-svscan` as PID 1, Lix on
-`PATH`, and a dropbear sshd on port 22. None of the three upstream trees is
-modified: this repository is a pure glue layer (Nix expressions, one early-boot
-shell script, one launcher script).
+`nix run` builds all of it from source and boots it. You get a root shell on the
+serial console, `s6-svscan` as PID 1 and dropbear on port 22. Inside the guest,
+`nix` is Lix and `/nix/store` is writable: the machine can build and add store
+paths, and they are still there after a reboot.
 
-Everything -- including the Asterinas kernel -- is built from source by
-`nix build`. A `git clone` followed by a single `nix run` is the whole
-workflow: there is no prebuilt artifact in the tree and no manual kernel step.
+None of the three upstream trees is modified. This repository is glue: Nix
+expressions, one early-boot shell script, one launcher script.
 
-## Status & Rationale (Why this stack?)
+## Why this stack
 
-**Status.** `dictyonos` is an experimental hobby project and an architectural
-proof of concept, not a distribution. It answers one narrow question -- can
-three independently evolving projects be woven into a system that boots, with
-none of them modified? -- and the honest answer is "yes, so far, in a QEMU VM".
-There is no installer, no upgrade path, no security response process, and no
-claim of production readiness. The tree also carries small pieces of
-scaffolding that exist only because some upstream has not grown the feature
-yet; each is commented with the limitation that forced it, and *Upstream gotchas
-found the hard way* below is really a to-do list for those upstreams. The
-intention is that this scaffolding shrinks as they evolve.
+**This is a proof of concept, not a distribution.** It asks one narrow question
+-- can three independently evolving projects be woven into a system that boots,
+with none of them forked? -- and answers "so far, yes, in QEMU". There is no
+installer, no upgrade path, no security response process and no claim of
+production readiness. A few pieces here exist only because an upstream has not
+grown the feature yet; each is commented where it lives, and *Upstream gotchas*
+below is effectively a to-do list for those upstreams.
 
-The constraint that keeps the experiment tractable is that this repository
-stays a paper-thin, non-invasive glue layer. Asterinas, sixos, infuse.nix and
-Lix are consumed at pinned revisions and patched nowhere; what lives here is Nix
-expressions, one early-boot shell script and one launcher script. Some of that
-glue is admittedly load-bearing rather than disposable -- the kernel is built as
-a pure Nix derivation over a vendored cargo registry, and stage1 works around
-two Asterinas gaps we found the hard way -- but none of it required touching
-upstream.
-
-Why *these* three, though? Interesting projects are not hard to line up; the
-real question is whether the pieces reinforce each other. Four ways in which
-they do:
+What keeps the experiment tractable is that the glue stays thin: Asterinas,
+sixos, infuse.nix and Lix are consumed at pinned revisions and patched nowhere.
+Why these three, though? Not because each is interesting on its own, but because
+they reinforce each other.
 
 ### A small trusted computing base, with memory safety where it counts
 
 A conventional Linux system puts an enormous amount of code in harm's way: a C
-kernel of tens of millions of lines, plus privileged daemons written in C and
-C++ -- `systemd` as PID 1, `udev`, the original `nix-daemon`. Here the kernel is
-Asterinas' framekernel, which confines every `unsafe` block to a small OSTD
-frame so that drivers and kernel services are written in Safe Rust, and the
-userland above it is chosen for the opposite property: `s6-svscan` supervises
-the machine with `fork`/`exec`, pipes and signals, and `s6-rc` reads a static
-database compiled at build time, so nothing at runtime parses configuration or
-talks to a bus.
+kernel of tens of millions of lines, plus privileged daemons such as `systemd`,
+`udev` and the original `nix-daemon`. Here the kernel is Asterinas'
+framekernel, which confines `unsafe` to a small OSTD frame so that drivers and
+kernel services are written in Safe Rust; above it, `s6-svscan` supervises the
+machine with `fork`/`exec`, pipes and signals, and `s6-rc` reads a database
+compiled at build time, so nothing parses configuration or talks to a bus at
+runtime.
 
-It is worth being precise, because "memory-safe distribution" would be an
-overclaim: busybox, `s6` itself, dropbear and Lix (C++, incrementally adopting
-Rust) are not memory-safe, and they run as root. The narrower and more useful
-statement is that the *large* privileged component -- the kernel -- is the
-memory-safe one, and that everything above it is deliberately small enough to
-audit. Measured in this tree: the kernel payload is 19.9 MB and its Nix closure
-is exactly itself, with zero references to anything else; the userspace closure
-is 1011.8 MB of store paths packed into a 639 MiB image.
+"Memory-safe distribution" would be an overclaim: busybox, `s6`, dropbear and
+Lix are not memory-safe, and they run as root. The narrower claim is that the
+*large* privileged component -- the kernel -- is the memory-safe one. For scale:
+the kernel payload is 19.9 MB and its Nix closure is exactly itself, while the
+userspace closure is 1011.8 MB packed into a 639 MiB image.
 
 ### One mental model, from packages to services
 
-NixOS has a well-known seam in it. Packages are functions -- `callPackage`,
-overlays, `overrideAttrs` -- but services live somewhere else entirely: a NixOS
-module system with its own evaluation model, feeding `systemd` units with their
-own state machine. Two mental models, one system, and a global option-tree
-evaluation whose cost shows up in every rebuild.
+NixOS has a seam in it. Packages are ordinary functions -- `callPackage`,
+overlays, `overrideAttrs` -- but services live on the other side of a module
+system with its own evaluation model, feeding systemd units with their own state
+machine. Two mental models, one system, and a global option tree whose cost is
+paid on every rebuild.
 
-sixos removes the seam. A service here *is* a derivation and a target *is* a
-bundle; both are composed with ordinary Nix functions and `infuse.nix`
-combinators, and the whole graph is compiled into an `s6-rc` database at build
-time. `default.nix` in this repository is under five hundred lines and defines
-every service the machine runs -- including the ordering constraints -- with no
-module system, no `config`/`mkIf` indirection and no global option tree. That is what
-makes a project this small able to reason about the whole system: the build
-either produces a coherent service graph or fails.
+sixos removes the seam: a service *is* a derivation, a target *is* a bundle, and
+both are composed with plain Nix and `infuse.nix` combinators. The whole graph
+is compiled into an `s6-rc` database at build time. `default.nix` here is
+under five hundred lines and defines every service the machine runs, ordering
+included, with no module system and no `config`/`mkIf` indirection. A project
+this small can hold its whole system in one file, and the build either produces
+a coherent graph or fails.
 
 ### Low impedance between a young kernel and its userland
 
-`systemd` is not merely large; it is entangled with Linux-specific behaviour --
-cgroup hierarchies, mount-propagation rules, netlink and `udev` events, and a
-long tail of syscalls and pseudo-filesystems. Reimplementing enough of that to
-satisfy it is a serious burden for a kernel that is still growing its Linux ABI,
-and it is precisely the burden Asterinas would otherwise have to carry.
+systemd is not merely large; it is entangled with Linux-specific behaviour:
+cgroup hierarchies, mount propagation, netlink and udev events, a long tail of
+syscalls and pseudo-filesystems. Reimplementing enough of that to satisfy it is
+a serious burden for a kernel that is still growing its Linux ABI, and it is
+precisely the burden Asterinas would otherwise have to carry.
 
-`s6` asks for very little: `fork`, `exec`, signals, pipes, file descriptors. Its
-supervisor tree is orthogonal POSIX primitives all the way down, and `s6-rc`
-reads a compiled database rather than interpreting one. The fit is good enough
-that the service set here comes up within about a second of guest time on a
-kernel that does not implement `rseq`, has no netlink, no ACPI power-off and no
-working `kexec`. Where Asterinas does have gaps they are shallow and
+`s6` asks for very little: `fork`, `exec`, signals, pipes, file
+descriptors. Its supervisor tree is orthogonal POSIX primitives all the way
+down. The fit is good enough that the service set here comes up within about a
+second of guest time on a kernel with no `rseq`, no netlink, no ACPI power-off
+and no working `kexec`. Where Asterinas does have gaps they are shallow and
 enumerable -- it cannot bind an IPv4 wildcard address, which is gotcha 8 -- and
 that is a far better failure mode than a service manager that hangs halfway
 through boot.
 
 ### A plausible substrate for microVMs and confidential computing
 
-This part is not implemented here, and it is worth saying so plainly: what
-follows is a reason to care about the *shape* of the stack, not a feature of
-this repository. But three properties line up in that direction. A kernel whose
-`unsafe` surface is small enough to audit -- and, eventually, to verify -- is the
-right trusted computing base for a confidential-computing guest (Intel TDX, AMD
-SEV-SNP), where the guest kernel is part of what gets measured and attested.
-A supervision tree built out of `fork`/`exec` and signals, with no daemon bus and
-no interpreted configuration, gives a short and deterministic cold start, which
-is what a serverless microVM is actually judged on. And a Lix store of
-content-addressed, reproducible closures is the thing an immutable node or an
-attested guest needs in order to say what it is running. Put those together with
-a read-only system image and a small writable state disk -- as this repository
-does -- and the shape of a disposable, measurable guest is already visible.
-Whether these three projects mature into that together is exactly the open
-question this experiment is poking at.
+Nothing in that direction is implemented here, so read this as a reason to care
+about the shape of the stack rather than as a feature. A kernel whose `unsafe`
+surface is small enough to audit, and eventually to verify, is the right trusted
+computing base for a confidential-computing guest (Intel TDX, AMD SEV-SNP),
+where the guest kernel is part of what gets measured and attested. A supervision
+tree built out of `fork`/`exec` and signals, with no daemon bus and no
+interpreted configuration, gives the short deterministic cold start a
+serverless microVM is judged on. And content-addressed closures are how an
+immutable node says what it is running. Put those together with a read-only
+system image and a small writable state disk and the shape of a disposable,
+measurable guest is already visible.
+
 ## Boot flow
 
-``````````
+```
 QEMU  -kernel + -initrd + -drive(readonly vda) + -drive(rw vdb)     direct kernel boot: no GRUB, no kexec
   |
   v
@@ -128,25 +107,25 @@ Asterinas kernel
   |  unpacks initramfs.cpio.gz, runs /init as PID 1
   v
 [dictyonos-init]                                 initramfs.nix + stage1-init.sh
-  |  mount proc / sys / devtmpfs
-  |  mount -t ext2 -o ro /dev/vda -> /sysroot    holds /nix/store + the configuration
+  |  mount proc / sys / devtmpfs, link /dev/ptmx
+  |  mount -t ext2 -o ro /dev/vda -> /sysroot    the system image: configuration + store
   |  read configuration=<store-path> from /proc/cmdline
   |  mount -t ext2 -o rw /dev/vdb -> /var        the writable state disk
-  |  bind /var/nix-var over /nix/var, and /nix/store onto itself
+  |  bind /var/nix-var over /nix/var
+  |  overlay /nix/store: lower = vda, upper = /var/nix-store-upper
   |  mount --move /proc /sys /dev into /sysroot
   |  switch_root /sysroot <configuration>/boot/init
   v
 s6-linux-init                                    mounts tmpfs /run, unpacks its cpio,
-  |                                              dumps the kernel environment
-  |                                              (configuration=, init=) into /run/boot
+  |                                              dumps the kernel environment into /run/boot
   v
 s6-svscan                                        long-lived PID 1
   |  rc.init -> <configuration>/bin/activate -> s6-rc-init + s6-rc change default
   v
 s6-rc services: set-hostname, mounts.{proc,sys,dev.pts,dev.shm,tmp,""}, net-dhcp,
-                lix-daemon(+log), ssh(+log)
+                state-sync, lix-daemon(+log), ssh(+log)
   + s6-linux-init-early-getty on ttyS0            interactive root shell
-``````````
+```
 
 ### Why not ownerboot / kexec?
 
@@ -154,13 +133,13 @@ sixos normally boots through `ownerboot`, which hands the new system to the
 kernel with `kexec`. Asterinas does not implement `kexec`, so that path is
 unusable here. Instead the sixos *configuration closure* -- the same derivation
 `mkConfiguration` produces and normally feeds to kexec -- is shipped as the
-root filesystem and booted with QEMU direct kernel boot. sixos itself is
+root filesystem and booted with QEMU's direct kernel boot. sixos itself is
 untouched: its own `boot/kernel-params` file already supplies the
 `configuration=` parameter that `rc.init` knows how to consume.
 
 ## Layout
 
-``````````
+```
 flake.nix                      inputs, packages, apps
 default.nix                    the sixos site + Lix system profile + kernel/initramfs wiring
 kernel.nix                     the Asterinas kernel, as a pure derivation
@@ -171,22 +150,30 @@ rootfs.nix                     pure derivation that emits rootfs.ext2
 scripts/run-vm.sh              boots the result under QEMU
 scripts/merge-cargo-locks.py   merges the three Cargo.lock files the build needs
 scripts/vendor-git-deps.py     rewrites asterinas git dependencies into path deps
-``````````
+```
 
 ## Quick start
 
-``````````sh
+```sh
 git clone https://github.com/LinTrau/dictyonos
 cd dictyonos
 nix run                       # builds kernel + initramfs + rootfs, then boots QEMU
-``````````
+```
 
-The first run builds the Asterinas kernel and a ~640 MiB ext2 image inside the
-Nix sandbox, so give it a few minutes. Afterwards:
+The first build compiles the Asterinas kernel, builds Lix from source (gotcha 13)
+and packs a 639 MiB ext2 image, all inside the Nix sandbox: give it a few
+minutes. Afterwards:
 
-``````````sh
+```sh
 ssh -p 2222 root@127.0.0.1    # the launcher generates a throwaway key and injects it
-``````````
+```
+
+The store in the guest is writable, so a recipe can be built there:
+
+```sh
+nix build --no-link --print-out-paths --expr 'derivation { name = "hi";
+  system = "x86_64-linux"; builder = "/bin/sh"; args = [ "-c" "echo hi > $out" ]; }'
+```
 
 ### Flake outputs (`x86_64-linux`)
 
@@ -201,7 +188,7 @@ ssh -p 2222 root@127.0.0.1    # the launcher generates a throwaway key and injec
 
 ### Running the VM
 
-``````````sh
+```sh
 nix run                                  # interactive serial console
 AUTO=1 nix run                           # the acceptance: two boots, then exit
 AUTO=1 BOOT2=0 nix run                   # only the first of the two boots
@@ -210,14 +197,14 @@ NET=0 nix run                            # boot without a NIC (and without ssh)
 SSH_PORT=2200 nix run                    # forward a different host port
 TIMEOUT=300 nix run                      # give up after N seconds
 MEM=16G SMP=4 nix run                    # more resources
-``````````
+```
 
 Useful environment variables: `DICTYONOS_KERNEL_ELF`, `DICTYONOS_ROOTFS`,
 `DICTYONOS_INITRAMFS`, `DICTYONOS_CONFIG`, `DICTYONOS_STATE`,
-`DICTYONOS_WORKDIR`, `CMDLINE`, `NET`, `MEM`, `SMP`, `CPU`, `TIMEOUT`,
-`QEMU_BIN`, `ENABLE_KVM`, `AUTO`, `AUTO_WAIT`, `BOOT2`, `STEP_WAIT`,
-`HALT_WAIT`, `SERIAL_LOG`, `SERIAL_LOG_BOOT2`, `SERIAL_LOG_HOST`,
-`SSH_KEY`, `SSH_PORT`, `SSH_WAIT`.
+`DICTYONOS_WORKDIR`, `CMDLINE`, `NET`, `MEM`, `SMP`, `CPU`,
+`TIMEOUT`, `QEMU_BIN`, `ENABLE_KVM`, `AUTO`, `AUTO_WAIT`, `BOOT2`,
+`STEP_WAIT`, `HALT_WAIT`, `SERIAL_LOG`, `SERIAL_LOG_BOOT2`,
+`SERIAL_LOG_HOST`, `SSH_KEY`, `SSH_PORT`, `SSH_WAIT`.
 
 `CMDLINE` is handy for debugging: appending `loglevel=info` to it restores
 Asterinas' per-syscall trace.
@@ -225,20 +212,28 @@ Asterinas' per-syscall trace.
 ### The two disks
 
 `/dev/vda` is the system image, attached with `readonly=on`. It is a
-content-addressed, shareable artifact, so nothing ever writes to it: `/etc`,
-`/bin` and `/nix/store` are all read-only.
+content-addressed, shareable artifact, so ideally nothing writes to it. One
+directory cannot avoid being written to, though: `/nix/store` is where Lix puts
+everything it builds or fetches, and a store that cannot be written to makes the
+guest a read-only appliance. So stage1 mounts an overlayfs there: `/dev/vda`'s
+store is the lower layer and `/var/nix-store-upper`, which lives on the state
+disk described below, is the upper one. `nix store add-file` and `nix build`
+in the guest land in the upper layer, and everything else on `/dev/vda` stays
+read-only. If the mount fails, stage1 falls back to a read-only bind-mount, says
+so on the console and boots anyway.
 
 `/dev/vdb` is a 512 MiB ext2 state disk, created on first run under
-`${DICTYONOS_WORKDIR:-$PWD/.dictyonos-vm}/state.ext2` and reused afterwards.
+`${DICTYONOS_WORKDIR:-$PWD/.dictyonos-vm}/state.ext2` and reused afterwards;
 `EPHEMERAL=1` replaces it with a blank one. stage1 grafts it over `/var` and
 binds `/var/nix-var` over `/nix/var`, so the Lix database, profiles and the
-daemon socket have somewhere to live. Nothing outside `.dictyonos-vm/` is
-touched.
+daemon socket have somewhere to live. The store's upper layer shares this disk,
+which is the practical ceiling on what can be built inside the guest. Nothing
+outside `.dictyonos-vm/` is touched.
 
 Asterinas never writes dirty pages back on its own (gotcha 11), so a small
 `state-sync` service commits `/var` with `sync -f` every 30 seconds. That is
-what makes the disk reusable; without it its contents would evaporate when the
-VM dies.
+what makes the disk reusable: without it, its contents evaporate when the VM
+dies.
 
 ### Without flakes
 
@@ -249,8 +244,8 @@ point.
 ## The kernel derivation
 
 `cargo osdk build` normally wants a network: it resolves crates.io and `git`
-dependencies at build time. `packages.kernel` (`kernel.nix`) makes the whole
-thing a pure derivation, so a fresh checkout really does build with one
+dependencies at build time. `packages.kernel` (`kernel.nix`) turns the whole
+thing into a pure derivation, so a fresh checkout really does build with one
 `nix build`:
 
 * **Every dependency is vendored up front.** Asterinas builds itself with
@@ -258,7 +253,7 @@ thing a pure derivation, so a fresh checkout really does build with one
   tree, `osdk/Cargo.lock`, and rust-src's own `library/Cargo.lock`.
   `scripts/merge-cargo-locks.py` merges them into one lock file, which
   `rustPlatform.fetchCargoVendor` turns into a fixed-output derivation
-  (`vendor.nix`) -- offline `.cargo/config.toml` included.
+  (`vendor.nix`), offline `.cargo/config.toml` included.
 * **Asterinas' own git dependencies become path dependencies.**
   `scripts/vendor-git-deps.py` rewrites the `git = ...` entries that point at
   `asterinas`-hosted crates into `path = ...` entries inside the vendor tree:
@@ -269,27 +264,27 @@ thing a pure derivation, so a fresh checkout really does build with one
   `#![deny(missing_docs)]` in `smoltcp` has to be relaxed by hand.
 * **The build runs in Asterinas' own package set**, with its overlay applied:
   that is what supplies the matching Rust nightly and the prebuilt Linux vDSOs
-  the kernel embeds (`VDSO_LIBRARY_DIR`).
-* `OSDK_LOCAL_DEV=1` is set, so `cargo-osdk` is built and used from the same
-  tree and emits paths that are still valid for the build.
+  the kernel embeds (`VDSO_LIBRARY_DIR`). `OSDK_LOCAL_DEV=1` is set, so
+  `cargo-osdk` is built and used from the same tree and emits paths that are
+  still valid for the build.
 
-**If you change any lock file, you must re-pin the vendor hash.** A
-fixed-output derivation's store path is a function of its hash and name only,
-so a stale `vendorHash` in `vendor.nix` silently reuses the old vendor tree. To
+**If you change any lock file, you must re-pin the vendor hash.** A fixed-output
+derivation's store path is a function of its hash and name only, so a stale
+`vendorHash` in `vendor.nix` silently reuses the old vendor tree. To
 re-capture it, set the hash to `sha256-AAAA...`, build, and copy the `got:`
 value out of the error.
 
 ### Privacy: redacted build metadata
 
 Asterinas bakes the compiling user and host into `/proc/version`.
-`cargo-osdk` sets `OSDK_BUILD_USERNAME` / `OSDK_BUILD_HOSTNAME` from `whoami`
-for the `cargo` child it spawns, so the only way to override them without
-patching upstream is a `cargo` shim earlier on `PATH`. `kernel.nix` installs
-one, so the result always reads:
+`cargo-osdk` sets `OSDK_BUILD_USERNAME` / `OSDK_BUILD_HOSTNAME` from
+`whoami` for the `cargo` child it spawns, so the only way to override them
+without patching upstream is a `cargo` shim earlier on `PATH`. `kernel.nix`
+installs one, so the result always reads:
 
-``````````
+```
 Linux version 5.13.0 (dictyonos@builder) (rustc ...) #1 SMP ...
-``````````
+```
 
 and the build fails outright if the compiling user or host leaks through. The
 shim also remaps the toolchain and vendor store paths out of the ELF's debug
@@ -300,20 +295,19 @@ closure into the image instead of a 20 MB one.
 
 * **The Nix sandbox is off.** Asterinas does not implement the full namespace
   set a strict sandbox needs, and it has no page-cache pressure reclaim yet, so
-  the generated `/etc/nix/nix.conf` contains `sandbox = false`. (Lix 2.94
-  removed `filter-syscalls` entirely, so that setting no longer exists and is
-  deliberately not written.)
+  the generated `/etc/nix/nix.conf` contains `sandbox = false`. Lix still
+  wants a seccomp filter around every build, which Asterinas cannot provide, so
+  the image's Lix is built with `-Dseccomp-sandboxing=disabled` (gotcha 13).
 * **No `mdevd` / `udev`.** Asterinas provides `devtmpfs`, so `/dev` is
-  populated by the kernel. The default sixos target set is replaced by a
-  minimal one; nothing waits on netlink hotplug events.
+  populated by the kernel. Nothing waits on netlink hotplug events.
 * **`mounts.proc`, `mounts.sys` and `mounts.""` are empty bundles.** The
   initramfs already moved a live `/proc` and `/sys` into the new root, so
-  re-mounting them would fail with `EBUSY`; `/` cannot be remounted read-write
-  either, because the system disk is read-only on purpose. The bundles exist
-  only so the after-references other targets make still resolve.
+  re-mounting them would fail with `EBUSY`; `/` cannot be remounted
+  read-write either, because the system disk is read-only on purpose. The
+  bundles exist only so the after-references other targets make still resolve.
 * **The first-boot activation branch is pre-empted.** sixos' first-boot branch
-  bind-mounts `/` read-write and calls `chattr +i`, which a read-only ext2 on a
-  read-only QEMU drive cannot do. `rootfs.nix` pre-creates the same `/etc`,
+  bind-mounts `/` read-write and calls `chattr +i`, which a read-only ext2 on
+  a read-only QEMU drive cannot do. `rootfs.nix` pre-creates the same `/etc`,
   `/bin/sh` and `/usr/bin/env` links that activation would create, using the
   exact targets its `readlink` comparisons test for, so the whole linkify pass
   is skipped -- see gotcha 1 for why that matters so much.
@@ -321,59 +315,51 @@ closure into the image instead of a 20 MB one.
   `boot.kernel.console`) already supervises a getty on `ttyS0`. A second one
   cannot take the controlling terminal and fails with
   `TIOCSCTTY: Operation not permitted`.
-* **`net-dhcp` is best-effort.** It brings every non-`lo` interface up and runs
-  `udhcpc` under a timeout, but every step is guarded and it always exits 0, so
-  a missing or unsupported NIC can never stall the boot. It also seeds
-  `/etc/resolv.conf` -- a symlink into the tmpfs-backed `/run`, because `/etc`
-  itself is read-only -- with the QEMU user-mode resolver.
+* **`net-dhcp` is best-effort.** It brings every non-`lo` interface up and
+  runs `udhcpc` under a timeout, but every step is guarded and it always exits
+  0, so a missing or unsupported NIC cannot stall the boot. It also seeds
+  `/etc/resolv.conf` -- a symlink into the tmpfs-backed `/run`, because
+  `/etc` itself is read-only -- with the QEMU user-mode resolver.
 * **`ssh` is public-key only.** The launcher generates a throwaway keypair,
   passes the public half on the kernel command line, and the service writes it
-  to `/root/.ssh/authorized_keys` (which lives on the state disk). dropbear
-  runs with `-s`, so password logins are off by construction, and it listens on
-  the interface address it discovers (see gotcha 8) rather than the wildcard.
+  to `/root/.ssh/authorized_keys` on the state disk. dropbear runs with
+  `-s`, so password logins are off by construction, and it binds the interface
+  address it discovers (gotcha 8) rather than the wildcard.
 * **`has-hwclock` is on.** Asterinas has no RTC driver, so the tag is not
-  literally true -- but it is what stops sixos from installing its
-  *file-backed* fake hwclock (`hwclock-fake` + `hwclock-fake-updater`, which
-  `redirfd` a state file into `/etc` and therefore die and get restarted about
-  once a second on a read-only root). With the tag on, sixos installs its real
-  `hwclock` oneshot instead, whose scripts end in `|| true` and cannot fail or
-  spin.
+  literally true, but it is what stops sixos from installing its *file-backed*
+  fake hwclock (`hwclock-fake` + `hwclock-fake-updater`, which `redirfd` a
+  state file into `/etc` and therefore die and get restarted about once a second
+  on a read-only root). With the tag on, sixos installs its real `hwclock`
+  oneshot instead, whose scripts end in `|| true` and cannot fail or spin.
 
 ## Upstream gotchas found the hard way
 
 1. **sixos' `activate` can abort silently, and then nothing works.** It runs
    under `set -e`, and its `linkify` pass writes to `$RWMOUNT/<path>`, where
-   `$RWMOUNT` is set *only* by the first-boot branch above -- so on a read-only
-   root any failed `ln -sfT` kills activation before `s6-rc-init` ever runs.
-   The machine still boots into the `s6-linux-init` *early getty*, which looks
-   like a working serial console with no services: no `/run/s6-rc`, no ssh, no
-   DHCP, and no error on the console (the output goes to the catch-all logger).
-   Every link activation touches has to either already exist or resolve.
-   `rootfs.nix` fails the build if one of its own links dangles.
+   `$RWMOUNT` is set *only* by the first-boot branch -- so on a read-only root
+   any failed `ln -sfT` kills activation before `s6-rc-init` ever runs. The
+   machine still boots into the `s6-linux-init` *early getty*, which looks like
+   a working serial console with no services. Every link activation touches has
+   to already exist or resolve; `rootfs.nix` fails the build if one of its own
+   links dangles.
 2. **Lix refuses to run on a store that is not a mount point.**
    `LocalStore::makeStoreWritable` issues
    `mount(NULL, /nix/store, none, MS_REMOUNT | MS_BIND, 0)` whenever `statvfs`
    reports `ST_RDONLY`, and the kernel answers `EINVAL` unless the target is
-   the root of a mount. `stage1-init.sh` therefore bind-mounts `/nix/store`
-   onto itself; the superblock stays read-only, so nothing can actually be
-   written there. `/nix/store/.links` also has to exist, because
-   `LocalStore`'s constructor creates it unconditionally -- even for a pure
-   `nix eval`.
+   the root of a mount. The overlay solves this on the way up; the read-only
+   fallback keeps the old self-bind-mount for it. `/nix/store/.links` also has
+   to exist, because `LocalStore`'s constructor creates it unconditionally --
+   even for a pure `nix eval`.
 3. **sixos `apply-tags` erases the host when no tag is active.**
    `lib.composeManyExtensions []` evaluates to `(_: _: {})`, so with an empty
    tag set the host collapses to just `tags`/`canonical`/`name`. This
    repository declares one always-true identity tag (`dictyonos`) purely to keep
-   the host alive; every real upstream tag is deliberately left off because
-   each one drags in kexec/ownerboot/initrd machinery Asterinas cannot use.
+   the host alive; every real upstream tag is deliberately left off because each
+   one drags in kexec/ownerboot/initrd machinery Asterinas cannot use.
 4. **sixos' s6-rc patch series only applies to nixpkgs 24.05.** Building sixos
    against a newer nixpkgs fails with `2 out of 7 hunks FAILED` in
-   `0009-add-OLDSTATE_UNPROPAGATED_RESTART.patch`. The `nixpkgs-sixos` input is
-   therefore pinned to the `nixos-24.05` branch, and Lix comes from a second
-   (`nixos-26.05`) input. The second input is a release branch rather than
-   `nixos-unstable` because the unstable revision current at the time of writing
-   ships a Lix whose meson options no longer match its own build script
-   (`ERROR: Unknown option: mimalloc`); 26.05 is also the channel Asterinas' own
-   NixOS distro targets.
+   `0009-add-OLDSTATE_UNPROPAGATED_RESTART.patch`. `nixpkgs-sixos` is therefore
+   pinned to `nixos-24.05`, and Lix comes from a second (`nixos-26.05`) input.
 5. **Longruns must use `six.mkFunnel`.** `six.mkService { type = "longrun"; ... }`
    emits `up`/`down`, but `s6-rc-compile` wants `run`; only `mkFunnel`/
    `mkLogger` produce it.
@@ -382,22 +368,22 @@ closure into the image instead of a 20 MB one.
    tty0`), which silently sends all userspace output to a framebuffer that does
    not exist. Plain `console=ttyS0` is required.
 7. **`fs.protected_hardlinks` blocks hardlinking the store.** Anyone assembling
-   the image by hand with `cp -al` hits `EPERM`. Building it inside the sandbox
-   (as `rootfs.nix` does) sidesteps this entirely.
+   the image by hand with `cp -al` hits `EPERM`. Building it inside the
+   sandbox (as `rootfs.nix` does) sidesteps this entirely.
 8. **Asterinas cannot bind an IPv4 wildcard address.** `bind()` resolves its
    argument in a local routing table
    (`kernel/core/src/net/route/mod.rs:lookup_local_iface`) and answers
    `EADDRNOTAVAIL` for anything that is not a local address -- `0.0.0.0` and
    `::` included, so the usual `listen(0.0.0.0:22)` cannot work at all. A plain
-   dropbear `-p 22` is worse: it takes the IPv6 wildcard from getaddrinfo,
-   fails on `IPV6_V6ONLY` and `bind(::)`, and exits with "No listening ports
+   dropbear `-p 22` is worse: it takes the IPv6 wildcard from getaddrinfo, fails
+   on `IPV6_V6ONLY` and `bind(::)`, and exits with "No listening ports
    available" without ever trying IPv4. The `ssh` service therefore waits for
    the NIC to have a routable address and binds that address.
 9. **dropbear validates the login shell through `/etc/shells`.** With the file
    absent glibc's `getusershell(3)` falls back to "/bin/sh,/bin/csh", and
    root's shell in a sixos-generated `passwd` is a store path -- so every login
-   is refused with "User 'root' has invalid shell, rejected" even though the
-   key was accepted. `rootfs.nix` writes `/etc/shells` from `passwd` itself.
+   is refused with "User 'root' has invalid shell, rejected" even though the key
+   was accepted. `rootfs.nix` writes `/etc/shells` from `passwd` itself.
 10. **sixos' generated `finish.user` scripts carry `-Ws4`.** `execlineb -W -s 4`
     demands four positional parameters, so every restart of a dying service
     prints `execlineb: fatal: too few arguments: expecting at least 4 but got 3`
@@ -407,40 +393,59 @@ closure into the image instead of a 20 MB one.
     Dirty pages leave the guest only when something calls `syncfs()` on the
     filesystem that owns them. The system-wide `sync` logs
     `block: failed to do Write on the device with error status: IoError`
-    against the read-only system disk and does not reliably reach the state
-    disk; the `sync` *mount option* is dropped on the floor, because Asterinas'
+    against the read-only system disk and does not reliably reach the state disk;
+    the `sync` *mount option* is dropped on the floor, because Asterinas'
     `PerMountFlags` has no `SYNCHRONOUS` bit. `sync -f /var` (syncfs on the
     state disk) works and returns 0, which is what `state-sync` uses.
+12. **Nothing creates `/dev/ptmx`.** Asterinas' devpts keeps the multiplexing
+    master at `/dev/pts/ptmx` and expects a symlink (its own source says so), so
+    `posix_openpt()` answers `ENOENT` until `/dev/ptmx` exists. The initramfs
+    creates that link, or every Lix build dies with
+    `opening pseudoterminal master: No such file or directory`.
+13. **Lix 2.94 has no way to switch off its seccomp filter at runtime.** The
+    `filter-syscalls` option was removed in 2.90, and `setupSyscallFilter()`
+    runs unconditionally in front of every local build, so on a kernel without
+    `seccomp(2)` a guest build dies with `unable to load seccomp BPF program:
+    Function not implemented`. The way out is the library's own meson switch,
+    `-Dseccomp-sandboxing=disabled`, which means building Lix from source
+    rather than substituting it -- done in `default.nix`.
+14. **Asterinas' ext2 writes xattrs that `e2fsck` rejects.** A `debugfs` check
+    of the state disk after a guest build reports `Extended attribute in inode
+    15 has a hash (0) which is invalid`, `i_blocks is 8, should be 16` and
+    `Block bitmap differences`, all of them in the directory overlayfs uses as
+    its upper layer. Nothing in the guest notices, files read back correctly, and
+    the disk is disposable -- but do not run a *repairing* `e2fsck` on one you
+    care about.
 
 ## Verifying
 
-``````````sh
+```sh
 AUTO=1 nix run
-``````````
+```
 
 boots the machine **twice**. The first boot runs the checks on the serial
 console: `uname -a`, `cat /proc/version`, `readlink /proc/1/exe`, the full
 `ps aux`, whether sixos' activation reached the end, `s6-svstat` for every
 longrun and the tail of their logs under `/var/log`, both disks and the network
-configuration, `nix --version` and `nix eval --expr '1 + 1'`, and a
-write/`sync -f`/read-back round-trip on the state disk. In parallel the host
-checks a real ssh handshake and runs a command through it.
+configuration, `nix --version` and `nix eval --expr '1 + 1'`, a
+write/`sync -f`/read-back round-trip on the state disk, and a real build plus a
+`nix store add-file` that prove `/nix/store` is writable. In parallel the host
+checks a live ssh handshake and runs a command through it.
 
 The second boot starts a fresh machine on the *same* state disk and has to find
-`/var/persist-early` and `/var/persist-late` still there with their contents,
-and has to present the same dropbear host key -- which is what proves the key was
-reused from the disk rather than regenerated. The host contributes evidence of
-its own: `e2fsck -fn` on the image, `debugfs` reads taken without mounting it
-(the guest halts rather than shutting down, so the image is never synced on the
-way out), and the client-visible host key from `ssh-keyscan` compared across the
-two boots. The run prints `REBOOT-PERSISTENCE-OK` only when all of that holds.
+`/var/persist-early`, `/var/persist-late` and both store paths still there with
+their contents, and has to present the same dropbear host key. The host
+contributes evidence of its own: `e2fsck -fn` on the image, `debugfs` reads
+taken without mounting it (the guest halts rather than shutting down, so the
+image is never synced on the way out), and the client-visible host key from
+`ssh-keyscan`, compared across the two boots. The run prints
+`REBOOT-PERSISTENCE-OK` only when all of that holds.
 
 The commands are typed into the guest's getty one step at a time, and every step
 ends with a sentinel the host waits for. Fixed sleeps are not enough: one step
 deliberately sleeps 35 seconds to let `state-sync` tick, and a host that runs
 ahead sees its own commands echoed back by the tty before the output they belong
-to -- which interleaves the transcript and truncates it for whoever reads it
-later.
+to, which interleaves the transcript and truncates it for whoever reads it later.
 
 Three transcripts come out of it -- `./serial.log` (boot 1),
 `./serial-boot2.log` (boot 2) and `./serial.host.log` (ssh, `e2fsck`,
@@ -453,9 +458,9 @@ every push and pull request, and uploads those transcripts either way.
 * `poweroff -f` reports `Failed to power off the system` and leaves QEMU
   running; Asterinas does not implement ACPI power-off. The launcher's
   `TIMEOUT` ends the run.
-* **The guest cannot build.** `/nix/store` is read-only by design, so
-  `nix eval` and everything that only reads the store work, but `nix build`
-  would have nowhere to put its output.
+* The guest can build, but it has no toolchain of its own: a build that needs a
+  compiler has to pull one from a binary cache first, and both the upper layer
+  of the store and `/var` live on the same 512 MiB state disk.
 * `uname -a` reports `Linux 5.13.0` on purpose -- Asterinas advertises a Linux
   ABI. `/proc/version` is the honest tell: it names the Rust compiler, not a C
   one.
@@ -465,13 +470,16 @@ every push and pull request, and uploads those transcripts either way.
   has to enumerate the addresses it actually has.
 * **State-disk durability runs on a 30-second timer.** Asterinas does no
   background writeback (gotcha 11), so `/var` is committed by the `state-sync`
-  service rather than by the kernel, and anything written in the last half
-  minute before the VM dies is lost. The acceptance proves the mechanism both
-  ways: the guest writes `/var/persist-early`, `sync -f`s it and reads it back;
-  `/var/persist-late` is deliberately never synced by the guest and lands on the
-  disk because the service ticked; and the second boot reads both of them back.
+  service rather than by the kernel, and anything written in the last half minute
+  before the VM dies is lost -- including a store path you just built. The
+  acceptance proves the mechanism both ways: the guest writes
+  `/var/persist-early`, `sync -f`s it and reads it back; `/var/persist-late`
+  is deliberately never synced by the guest and lands on the disk because the
+  service ticked; and the second boot reads both back.
+* **A repairing `e2fsck` would damage the state disk** (gotcha 14). The
+  acceptance only ever runs `e2fsck -fn`.
 
-## License & Upstream Credits
+## License & upstream credits
 
 The glue layer in this repository -- `flake.nix`, `default.nix`, `kernel.nix`,
 `vendor.nix`, `initramfs.nix`, `rootfs.nix`, `stage1-init.sh` and `scripts/` --
@@ -486,12 +494,11 @@ projects. Their licenses apply to them, not to this repository:
 | [Asterinas](https://github.com/asterinas/asterinas) | MPL-2.0 | kernel; referenced by revision via the `asterinas` input and built locally by `kernel.nix` |
 | [sixos](https://codeberg.org/amjoseph/sixos) | GPL-3.0-only (see its `COPYING.GPL3-ONLY`) | s6-based service layer |
 | [infuse.nix](https://codeberg.org/amjoseph/infuse.nix) | GPL-3.0 (per its repository) | attribute-set combinators sixos is built on |
-| [Lix](https://lix.systems/) | LGPL-2.1 | package manager; taken prebuilt from nixpkgs |
+| [Lix](https://lix.systems/) | LGPL-2.1 | package manager; built from source without seccomp support (gotcha 13) |
 | [dropbear](https://matt.ucc.asn.au/dropbear/dropbear.html) | MIT | ssh server |
 | [nixpkgs](https://github.com/NixOS/nixpkgs) | MIT | package definitions |
 | [skarnet s6 / s6-rc / s6-linux-init](https://skarnet.org/software/) | ISC | process supervision, pulled in through sixos |
 
-Because sixos and infuse.nix are fetched as build inputs at their own
-revisions, anyone redistributing a *built* dictyonos image is redistributing
-GPL-3.0 binaries and must honour those terms.
-
+Because sixos and infuse.nix are fetched as build inputs at their own revisions,
+anyone redistributing a *built* dictyonos image is redistributing GPL-3.0
+binaries and must honour those terms.

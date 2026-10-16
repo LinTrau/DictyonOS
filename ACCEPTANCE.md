@@ -1,10 +1,10 @@
-# dictyonos — acceptance transcript
+# dictyonos: acceptance transcript
 
 This is the acceptance record for this tree. Everything below was captured by
 `AUTO=1 nix run` on a stock, non-interactive boot: there is no manual step of any
-kind. The run boots the machine **twice against the same state disk** — the first
-boot has to bring the system up, the second has to show that what the first one
-wrote is still there — and it checks the result from the host as much as from the
+kind. The run boots the machine **twice against the same state disk**: the first
+boot has to bring the system up, and the second has to show that what the first
+one wrote is still there. It checks the result from the host as much as from the
 guest.
 
 ```sh
@@ -21,7 +21,7 @@ AUTO=1 BOOT2=0 nix run
 Nothing is overridden: the kernel, the initramfs, the root filesystem, the state
 disk and the kernel command line all come straight out of the flake. The launcher
 types the commands below into the serial console itself and waits for each one to
-answer before typing the next, so the transcript is in the order it happened — the
+answer before typing the next, so the transcript is in the order it happened. The
 step that writes `/var/persist-late` deliberately sleeps 35 s in the middle.
 
 ## Boot 1, from the serial console
@@ -48,32 +48,32 @@ exe; ps aux 2>/dev/null; echo DICTYONOS-OK-"04"
 /nix/store/fqbzpslyx0mfwmiwpn7vbdar39g756dx-s6-2.12.0.4/bin/s6-svscan
 PID   USER     TIME  COMMAND
     1 root      0:00 /nix/store/fqbzpslyx0mfwmiwpn7vbdar39g756dx-s6-2.12.0.4/bi
-   24 root      0:00 s6-supervise s6-svscan-log
-   25 root      0:00 s6-supervise s6-linux-init-runleveld
-   26 root      0:00 s6-supervise s6-linux-init-shutdownd
-   27 root      0:00 s6-supervise s6-linux-init-early-getty
-   28 root      0:00 /nix/store/fqbzpslyx0mfwmiwpn7vbdar39g756dx-s6-2.12.0.4/bi
-   29 root      0:00 /nix/store/v9835pqvwavkylzv7a5jlvq2m0jd4ddz-busybox-1.36.1
-   30 root      0:00 /nix/store/js0jfqxgrlb7bwk8lr1qa4h3cb4cd0fm-s6-linux-init-
-   31 root      0:00 /nix/store/fqbzpslyx0mfwmiwpn7vbdar39g756dx-s6-2.12.0.4/bi
-   47 root      0:00 s6-supervise lix-daemon
-   48 root      0:00 s6-supervise lix-daemon-log
-   49 root      0:00 s6-supervise s6rc-fdholder
-   50 root      0:00 s6-supervise s6rc-oneshot-runner
-   51 root      0:00 s6-supervise ssh
-   52 root      0:00 s6-supervise ssh-log
-   53 root      0:00 s6-supervise state-sync
-   54 root      0:00 s6-supervise state-sync-log
-   61 root      0:00 /nix/store/fqbzpslyx0mfwmiwpn7vbdar39g756dx-s6-2.12.0.4/bi
-   62 root      0:00 /nix/store/fqbzpslyx0mfwmiwpn7vbdar39g756dx-s6-2.12.0.4/bi
-  101 root      0:00 /nix/store/fqbzpslyx0mfwmiwpn7vbdar39g756dx-s6-2.12.0.4/bi
+   26 root      0:00 s6-supervise s6-svscan-log
+   27 root      0:00 s6-supervise s6-linux-init-runleveld
+   28 root      0:00 s6-supervise s6-linux-init-shutdownd
+   29 root      0:00 s6-supervise s6-linux-init-early-getty
+   30 root      0:00 /nix/store/fqbzpslyx0mfwmiwpn7vbdar39g756dx-s6-2.12.0.4/bi
+   31 root      0:00 /nix/store/v9835pqvwavkylzv7a5jlvq2m0jd4ddz-busybox-1.36.1
+   32 root      0:00 /nix/store/fqbzpslyx0mfwmiwpn7vbdar39g756dx-s6-2.12.0.4/bi
+   33 root      0:00 /nix/store/js0jfqxgrlb7bwk8lr1qa4h3cb4cd0fm-s6-linux-init-
+   49 root      0:00 s6-supervise lix-daemon
+   50 root      0:00 s6-supervise lix-daemon-log
+   51 root      0:00 s6-supervise s6rc-fdholder
+   52 root      0:00 s6-supervise s6rc-oneshot-runner
+   53 root      0:00 s6-supervise ssh
+   54 root      0:00 s6-supervise ssh-log
+   55 root      0:00 s6-supervise state-sync
+   56 root      0:00 s6-supervise state-sync-log
+   63 root      0:00 /nix/store/fqbzpslyx0mfwmiwpn7vbdar39g756dx-s6-2.12.0.4/bi
+   64 root      0:00 /nix/store/fqbzpslyx0mfwmiwpn7vbdar39g756dx-s6-2.12.0.4/bi
   105 root      0:00 /nix/store/fqbzpslyx0mfwmiwpn7vbdar39g756dx-s6-2.12.0.4/bi
-  106 root      0:00 /nix/store/fqbzpslyx0mfwmiwpn7vbdar39g756dx-s6-2.12.0.4/bi
-  113 root      0:00 {yqqw32lw56s9plm} /nix/store/v9835pqvwavkylzv7a5jlvq2m0jd4
-  116 root      0:05 /nix/store/g8y3595zxljm9g4lyaki61zqjqyvi52d-lix-2.94.2/bin
-  117 root      0:00 /nix/store/50gf8bygvm8cv7gw73w6w5injdrcpzhk-dropbear-2022.
-  147 root      0:00 /nix/store/v9835pqvwavkylzv7a5jlvq2m0jd4ddz-busybox-1.36.1
-  151 root      0:00 ps aux
+  107 root      0:00 /nix/store/fqbzpslyx0mfwmiwpn7vbdar39g756dx-s6-2.12.0.4/bi
+  108 root      0:00 /nix/store/fqbzpslyx0mfwmiwpn7vbdar39g756dx-s6-2.12.0.4/bi
+  117 root      0:00 {yqqw32lw56s9plm} /nix/store/v9835pqvwavkylzv7a5jlvq2m0jd4
+  118 root      0:05 /nix/store/hhshbwfj3fc45r5c48qd8nffmapd904d-lix-2.94.2/bin
+  119 root      0:00 /nix/store/50gf8bygvm8cv7gw73w6w5injdrcpzhk-dropbear-2022.
+  149 root      0:00 /nix/store/v9835pqvwavkylzv7a5jlvq2m0jd4ddz-busybox-1.36.1
+  153 root      0:00 ps aux
 DICTYONOS-OK-04
 /run/service/s6-linux-init-early-getty # echo ---- s6 ----; if [ -d /run/s6-rc ]
 
@@ -95,12 +95,12 @@ DICTYONOS-OK-05
 
 /service/$s; done 2>&1; echo DICTYONOS-OK-"06"
 ---- svstat ----
-up (pid 117) 37 seconds
-up (pid 106) 37 seconds
-up (pid 116) 37 seconds
+up (pid 119) 37 seconds
+up (pid 108) 37 seconds
+up (pid 118) 37 seconds
 up (pid 105) 37 seconds
-up (pid 113) 37 seconds
-up (pid 62) 37 seconds, ready 37 seconds
+up (pid 117) 37 seconds
+up (pid 63) 37 seconds, ready 37 seconds
 DICTYONOS-OK-06
 /run/service/s6-linux-init-early-getty # echo ---- svclogs ----; echo '== ssh';
 
@@ -111,22 +111,22 @@ aemon/current 2>&1; echo '== state-sync'; tail -8 /var/log/state-sync/current 2>
 &1; echo DICTYONOS-OK-"07"
 ---- svclogs ----
 == ssh
-@400000006ad259f71c1a74cb dropbear: installed the authorized key from the kernel command line
-@400000006ad259f71ef0cb8f dropbear: listening on 10.0.2.15:22
-@400000006ad259f721766e12 [117] Oct 16 10:07:30 Not backgrounding
-@400000006ad259fb25d577e3 [137] Oct 16 10:07:34 Child connection from 10.0.2.2:44268
-@400000006ad259fb2b73009c [137] Oct 16 10:07:34 Pubkey auth succeeded for 'root' with ssh-ed25519 key SHA256:xZaF01c6o8MX3cmqpGitnKrX0dbhyhTzzbjjC3BqKvM from 10.0.2.2:44268
-@400000006ad259fb2c17d513 [137] Oct 16 10:07:34 Exit (root) from <10.0.2.2:44268>: Disconnect received
-@400000006ad259fb2d4b5249 [139] Oct 16 10:07:34 Child connection from 10.0.2.2:44284
-@400000006ad259fb331718c4 [139] Oct 16 10:07:34 Pubkey auth succeeded for 'root' with ssh-ed25519 key SHA256:xZaF01c6o8MX3cmqpGitnKrX0dbhyhTzzbjjC3BqKvM from 10.0.2.2:44284
-@400000006ad259fb34de3d10 [139] Oct 16 10:07:34 Exit (root) from <10.0.2.2:44284>: Disconnect received
-@400000006ad259fb35c331be [143] Oct 16 10:07:34 Child connection from 10.0.2.2:44300
-@400000006ad259fb36313182 [143] Oct 16 10:07:34 Exit before auth from <10.0.2.2:44300>: Exited normally
-@400000006ad259fc24470be3 [144] Oct 16 10:07:35 Child connection from 10.0.2.2:45554
-@400000006ad259fc24820d43 [144] Oct 16 10:07:35 Exit before auth from <10.0.2.2:45554>: Error reading: Connection reset by peer
+@400000006ad2606e1b5643e9 dropbear: installed the authorized key from the kernel command line
+@400000006ad2606e1dd65225 dropbear: listening on 10.0.2.15:22
+@400000006ad2606e2045795d [119] Oct 16 10:35:05 Not backgrounding
+@400000006ad26072294dd7dc [139] Oct 16 10:35:09 Child connection from 10.0.2.2:35906
+@400000006ad260722f61b788 [139] Oct 16 10:35:09 Pubkey auth succeeded for 'root' with ssh-ed25519 key SHA256:xZaF01c6o8MX3cmqpGitnKrX0dbhyhTzzbjjC3BqKvM from 10.0.2.2:35906
+@400000006ad260723018ef42 [139] Oct 16 10:35:09 Exit (root) from <10.0.2.2:35906>: Disconnect received
+@400000006ad26072318f7b9a [141] Oct 16 10:35:09 Child connection from 10.0.2.2:35910
+@400000006ad2607237b38dc1 [141] Oct 16 10:35:09 Pubkey auth succeeded for 'root' with ssh-ed25519 key SHA256:xZaF01c6o8MX3cmqpGitnKrX0dbhyhTzzbjjC3BqKvM from 10.0.2.2:35910
+@400000006ad260723962061d [141] Oct 16 10:35:09 Exit (root) from <10.0.2.2:35910>: Disconnect received
+@400000006ad2607239df31c0 [145] Oct 16 10:35:09 Child connection from 10.0.2.2:35918
+@400000006ad260723a63da25 [145] Oct 16 10:35:09 Exit before auth from <10.0.2.2:35918>: Exited normally
+@400000006ad260732b9e4ce8 [146] Oct 16 10:35:10 Child connection from 10.0.2.2:35892
+@400000006ad260732bc2b72c [146] Oct 16 10:35:10 Exit before auth from <10.0.2.2:35892>: Error reading: Connection reset by peer
 == lix-daemon
 == state-sync
-@400000006ad25a1519af2fcb state-sync: committing /var
+@400000006ad2608c19a8d0c0 state-sync: committing /var
 DICTYONOS-OK-07
 /run/service/s6-linux-init-early-getty # echo ---- persist ----; echo early > /v
 
@@ -139,10 +139,10 @@ early
 DICTYONOS-OK-08
 /run/service/s6-linux-init-early-getty # echo ---- disks ----; mount | grep -E '
 
-vda|vdb|/var'; echo DICTYONOS-OK-"09"
+vda|vdb|nix/store|/var'; echo DICTYONOS-OK-"09"
 ---- disks ----
 /dev/vda on / type ext2 (ro,relatime)
-/dev/vda on /nix/store type ext2 (ro,relatime)
+overlay on /nix/store type overlay (rw,relatime)
 /dev/vdb on /nix/var type ext2 (rw,relatime)
 /dev/vdb on /var type ext2 (rw,relatime)
 DICTYONOS-OK-09
@@ -169,30 +169,73 @@ System configuration file: /etc/nix/nix.conf
 User configuration files: /root/.config/nix/nix.conf:/etc/xdg/nix/nix.conf
 Store directory: /nix/store
 State directory: /nix/var/nix
-Data directory: /nix/store/g8y3595zxljm9g4lyaki61zqjqyvi52d-lix-2.94.2/share
-[    48.049] WARN  : PID 171: terminating on signal SIGKILL
+Data directory: /nix/store/hhshbwfj3fc45r5c48qd8nffmapd904d-lix-2.94.2/share
+[    48.170] WARN  : PID 173: terminating on signal SIGKILL
 DICTYONOS-OK-11
 /run/service/s6-linux-init-early-getty # nix eval --expr '1 + 1'; echo DICTYONOS
 
 -OK-"12"
 2
-[    50.010] WARN  : PID 173: terminating on signal SIGKILL
+[    49.972] WARN  : PID 175: terminating on signal SIGKILL
 DICTYONOS-OK-12
+/run/service/s6-linux-init-early-getty # echo ---- store write ----; echo built-
+
+in-the-guest > /tmp/dictyonos-store-write.txt; nix store add-file /tmp/dictyonos
+
+-store-write.txt; echo add-file-exit=$?; sync -f /var; echo DICTYONOS-OK-"13"
+---- store write ----
+/nix/store/caardw9r23xgi40d2ymsbjr9mncb2lm1-dictyonos-store-write.txt
+[    52.463] WARN  : PID 177: terminating on signal SIGKILL
+add-file-exit=0
+[    52.498] WARN  : PID 179: terminating on signal SIGKILL
+DICTYONOS-OK-13
+/run/service/s6-linux-init-early-getty # echo ---- build ----; nix build --no-li
+
+nk --print-out-paths --expr "derivation { name = ''dictyonos-build-test''; syste
+
+m = ''x86_64-linux''; builder = ''/bin/sh''; args = [ ''-c'' ''echo built-in-the
+
+-guest > \$out'' ]; }"; echo build-exit=$?; sync -f /var; echo DICTYONOS-OK-"14"
+
+---- build ----
+warning: error: unable to download 'https://cache.nixos.org/nix-cache-info': Resolving timed out after 5102 milliseconds (curl error code=28); retrying in 430ms ms (attempt 1/5)
+[    62.093] WARN  : PID 192: terminating on signal SIGKILL
+[    62.094] WARN  : PID 192: terminating on signal SIGKILL
+[    62.131] WARN  : `personality(ADDR_NO_RANDOMIZE)` is accepted, but still does not disable ASLR
+/nix/store/kfvsv78kfdskj96m3bm50v0dhnrbhkgh-dictyonos-build-test
+[    62.149] WARN  : PID 183: terminating on signal SIGKILL
+build-exit=0
+[    62.179] WARN  : PID 185: terminating on signal SIGKILL
+DICTYONOS-OK-14
+/run/service/s6-linux-init-early-getty # echo ---- built content ----; ls -ld /n
+
+ix/store/*-dictyonos-build-test /nix/store/*-dictyonos-store-write.txt; cat /nix
+
+/store/*-dictyonos-build-test; cat /nix/store/*-dictyonos-store-write.txt; echo
+
+DICTYONOS-OK-"15"
+---- built content ----
+-r--r--r--    1 root     root            19 Dec 31  1969 /nix/store/caardw9r23xgi40d2ymsbjr9mncb2lm1-dictyonos-store-write.txt
+-r--r--r--    1 root     root            19 Dec 31  1969 /nix/store/kfvsv78kfdskj96m3bm50v0dhnrbhkgh-dictyonos-build-test
+built-in-the-guest
+built-in-the-guest
+DICTYONOS-OK-15
 /run/service/s6-linux-init-early-getty # echo ---- persist2 ----; echo late > /v
 
 ar/persist-late; sleep 35; cat /var/persist-late; ls -l /var/persist-late /var/p
 
-ersist-early; tail -3 /var/log/state-sync/current; echo DICTYONOS-OK-"13"
+ersist-early; tail -3 /var/log/state-sync/current; echo DICTYONOS-OK-"16"
 ---- persist2 ----
 late
--rw-r--r--    1 root     root             6 Oct 16 10:08 /var/persist-early
--rw-r--r--    1 root     root             5 Oct 16 10:08 /var/persist-late
-@400000006ad25a1519af2fcb state-sync: committing /var
-@400000006ad25a331e4b0757 state-sync: committing /var
-DICTYONOS-OK-13
+-rw-r--r--    1 root     root             6 Oct 16 10:35 /var/persist-early
+-rw-r--r--    1 root     root             5 Oct 16 10:36 /var/persist-late
+@400000006ad2608c19a8d0c0 state-sync: committing /var
+@400000006ad260aa1e6754f0 state-sync: committing /var
+@400000006ad260c823ae5d42 state-sync: committing /var
+DICTYONOS-OK-16
 /run/service/s6-linux-init-early-getty # echo DICTYONOS-DONE; echo DICTYONOS-OK-
 
-"14"
+"17"
 DICTYONOS-DONE
 ```
 
@@ -238,8 +281,8 @@ echo DICTYONOS-OK-"02"
 ---- persistence ----
 early
 late
--rw-r--r--    1 root     root             6 Oct 16 10:08 /var/persist-early
--rw-r--r--    1 root     root             5 Oct 16 10:08 /var/persist-late
+-rw-r--r--    1 root     root             6 Oct 16 10:35 /var/persist-early
+-rw-r--r--    1 root     root             5 Oct 16 10:36 /var/persist-late
 DICTYONOS-OK-02
 echo ---- host key ----; dropbearkey -y
 
@@ -247,35 +290,49 @@ echo ---- host key ----; dropbearkey -y
 
 "
 ---- host key ----
-ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICTRYzWABMXNpSYx7qO3DybUZ9C60+WrfM3L7Y8LGGze root@dictyonos
-Fingerprint: SHA256:FQ6EyhhHc7L2TamAGc7i8AWt6o9+l6CLuI//ar9JzEY
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJoHnz0y6SL0xrMO+UmzCVdr8coiw8kpq2mF1h7n57Mp root@dictyonos
+Fingerprint: SHA256:pog5WUhpR2fhQ56kogaW1GW4fcWtTOkuci0fIDKM5eI
 DICTYONOS-OK-03
 /run/service/s6-linux-init-early-getty # echo ---- state-sync log ----; tail -3
 
 /var/log/state-sync/current; echo DICTYONOS-OK-"04"
 ---- state-sync log ----
-@400000006ad25a7811722d48 state-sync: committing /var
+@400000006ad260fc19d59117 state-sync: committing /var
 DICTYONOS-OK-04
+/run/service/s6-linux-init-early-getty # echo ---- store persistence ----; ls -l
+
+d /nix/store/*-dictyonos-build-test /nix/store/*-dictyonos-store-write.txt; cat
+
+/nix/store/*-dictyonos-build-test; cat /nix/store/*-dictyonos-store-write.txt; e
+
+cho DICTYONOS-OK-"05"
+---- store persistence ----
+-r--r--r--    1 root     root            19 Dec 31  1969 /nix/store/caardw9r23xgi40d2ymsbjr9mncb2lm1-dictyonos-store-write.txt
+-r--r--r--    1 root     root            19 Dec 31  1969 /nix/store/kfvsv78kfdskj96m3bm50v0dhnrbhkgh-dictyonos-build-test
+built-in-the-guest
+built-in-the-guest
+DICTYONOS-OK-05
 /run/service/s6-linux-init-early-getty # if [ "$(cat /var/persist-early 2>/dev/n
 
-ull)" = early ] && [ "$(cat /var/persist-late 2>/dev/null)" = late ]; then echo
+ull)" = early ] && [ "$(cat /var/persist-late 2>/dev/null)" = late ] && [ -e "$(
 
-REBOOT-PERSISTENCE-"OK"; else echo REBOOT-PERSISTENCE-"FAILED"; fi; echo DICTYON
+ls -d /nix/store/*-dictyonos-build-test 2>/dev/null)" ]; then echo REBOOT-PERSIS
 
-OS-OK-"05"
+TENCE-"OK"; else echo REBOOT-PERSISTENCE-"FAILED"; fi; echo DICTYONOS-OK-"06"
 REBOOT-PERSISTENCE-OK
-DICTYONOS-OK-05
+DICTYONOS-OK-06
 /run/service/s6-linux-init-early-getty # echo DICTYONOS-DONE; echo DICTYONOS-OK-
 
-"06"
+"07"
 DICTYONOS-DONE
 ```
 
 ## The state disk, from the host
 
-e2fsck -fn reports the filesystem consistent, debugfs reads the files out of it
-without mounting it, and the host key dropbear presented to the ssh client is
-compared across the two boots.
+debugfs reads the files out of it without mounting it, and the host key dropbear
+presented to the ssh client is compared across the two boots. e2fsck runs with
+-n, so it only looks: it reports the extended attributes Asterinas wrote for the
+overlay's upper layer as damaged. See the last note.
 
 ```text
 ==> the guest halted; stopping the machine
@@ -283,48 +340,70 @@ compared across the two boots.
 == boot1: e2fsck -fn state.ext2 ==
 e2fsck 1.47.0 (5-Feb-2023)
 Pass 1: Checking inodes, blocks, and sizes
+Extended attribute in inode 15 has a hash (0) which is invalid
+Clear? no
+
+Inode 15, i_blocks is 8, should be 16.  Fix? no
+
 Pass 2: Checking directory structure
 Pass 3: Checking directory connectivity
 Pass 4: Checking reference counts
 Pass 5: Checking group summary information
-state.ext2: 36/32768 files (0.0% non-contiguous), 2178/131072 blocks
+Block bitmap differences:  -2649 -2652 -2665 -2686
+Fix? no
+
+state.ext2: ********** WARNING: Filesystem still has errors **********
+
+state.ext2: 67/32768 files (4.5% non-contiguous), 4283/131072 blocks
+e2fsck exit status: 4
 == /persist-early ==
 early
 == /persist-late ==
 late
 == /log/state-sync/current ==
-@400000006ad25a1519af2fcb state-sync: committing /var
-@400000006ad25a331e4b0757 state-sync: committing /var
-@400000006ad25a5120dc0122 state-sync: committing /var
+@400000006ad2608c19a8d0c0 state-sync: committing /var
+@400000006ad260aa1e6754f0 state-sync: committing /var
+@400000006ad260c823ae5d42 state-sync: committing /var
 == /lib/dropbear ==
-     30   40755 (2)      0      0    4096 17-Oct-2026 01:07 .
-     29   40755 (2)      0      0    4096 17-Oct-2026 01:07 ..
-     33  100600 (1)      0      0      83 17-Oct-2026 01:07 dropbear_ed25519_host_key
+     34   40755 (2)      0      0    4096 17-Oct-2026 01:35 .
+     33   40755 (2)      0      0    4096 17-Oct-2026 01:35 ..
+     37  100600 (1)      0      0      83 17-Oct-2026 01:35 dropbear_ed25519_host_key
 
 ==> the guest halted; stopping the machine
 
 == boot2: e2fsck -fn state.ext2 ==
 e2fsck 1.47.0 (5-Feb-2023)
 Pass 1: Checking inodes, blocks, and sizes
+Extended attribute in inode 15 has a hash (0) which is invalid
+Clear? no
+
+Inode 15, i_blocks is 8, should be 16.  Fix? no
+
 Pass 2: Checking directory structure
 Pass 3: Checking directory connectivity
 Pass 4: Checking reference counts
 Pass 5: Checking group summary information
-state.ext2: 39/32768 files (0.0% non-contiguous), 2180/131072 blocks
+Block bitmap differences:  -2649 -2652 -2665 -2686
+Fix? no
+
+state.ext2: ********** WARNING: Filesystem still has errors **********
+
+state.ext2: 70/32768 files (4.3% non-contiguous), 4285/131072 blocks
+e2fsck exit status: 4
 == /persist-early ==
 early
 == /persist-late ==
 late
 == /log/state-sync/current ==
-@400000006ad25a7811722d48 state-sync: committing /var
+@400000006ad260fc19d59117 state-sync: committing /var
 == /lib/dropbear ==
-     30   40755 (2)      0      0    4096 17-Oct-2026 01:07 .
-     29   40755 (2)      0      0    4096 17-Oct-2026 01:07 ..
-     33  100600 (1)      0      0      83 17-Oct-2026 01:07 dropbear_ed25519_host_key
+     34   40755 (2)      0      0    4096 17-Oct-2026 01:35 .
+     33   40755 (2)      0      0    4096 17-Oct-2026 01:35 ..
+     37  100600 (1)      0      0      83 17-Oct-2026 01:35 dropbear_ed25519_host_key
 
 == dropbear host key, as a client sees it ==
 both boots presented the same key:
-[127.0.0.1]:2222 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICTRYzWABMXNpSYx7qO3DybUZ9C60+WrfM3L7Y8LGGze
+[127.0.0.1]:2222 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJoHnz0y6SL0xrMO+UmzCVdr8coiw8kpq2mF1h7n57Mp
 
 == after boot 2, read from the state disk ==
 persist-early: 'early'
@@ -342,13 +421,15 @@ host key:      byte-identical to boot 1
 | no systemd anywhere | ps lists s6 supervisors only, and the closure contains no systemd, dbus or polkit |
 | sixos activation completed | `/run/s6-rc` exists, which only happens if the sixos bin/activate ran all the way to s6-rc-init |
 | service supervision | s6-svstat reports ssh, ssh-log, lix-daemon, lix-daemon-log, `state-sync` and s6rc-oneshot-runner up, each with its own s6-log |
-| read-only system disk | mount shows `/dev/vda on / type ext2 (ro,relatime)`, and /nix/store as a read-only mount of its own |
+| read-only system disk | mount shows `/dev/vda on / type ext2 (ro,relatime)`; the running system never writes to it |
 | writable state disk | `/dev/vdb on /var type ext2 (rw,relatime)`, with `/nix/var` bound onto it |
-| state disk really persists | the host finds `/persist-early` and /persist-late inside `state.ext2`; `/var/persist-late` was never synced by the shell — the `state-sync` timer committed it |
+| a writable store on a read-only root | /nix/store is an overlay mount: the system disk is the lower layer and `/var/nix-store-upper`, which lives on the state disk, is the upper one |
+| state disk really persists | the host finds `/persist-early` and /persist-late inside `state.ext2`; `/var/persist-late` was never synced by the shell; the `state-sync` timer committed it |
 | the persistence survives a reboot | boot 2 reads early and late back from the same disk, with a fresh kernel and an empty page cache |
 | the ssh host key survives a reboot | both boots present the same client-visible key, and the key file dumped from the disk is byte-identical across them |
 | Lix is the package manager | `nix --version` reports `nix (Lix, like Nix) 2.94.2` |
-| Lix works on a read-only store | `nix eval --expr '1 + 1'` prints 2, on a root filesystem mounted read-only |
+| Lix runs, and the guest can build | `nix eval --expr '1 + 1'` prints 2, `nix store add-file` adds an object to the store, and a real `nix build` produces /nix/store/...-dictyonos-build-test |
+| what the guest built survives a reboot | boot 2 finds the added file and the built path again, with the same contents |
 | ssh | a real handshake from the host succeeds on both boots and runs `uname -a` and cat `/proc/1/comm` through it |
 | ssh authentication | dropbear records `Pubkey auth succeeded` for 'root'; the launcher's throwaway key is handed over on the kernel command line |
 
@@ -367,8 +448,13 @@ host key:      byte-identical to boot 1
   implements. A system-wide sync reports
   block: failed to do Write on the device with error status: IoError against the
   read-only system disk and does not reliably reach the state disk. That is a
-  property of Asterinas, not of this configuration — see gotcha 11 and the
+  property of Asterinas, not of this configuration; see gotcha 11 and the
   `state-sync` service in [README.md](README.md).
+* `e2fsck -fn` on the state disk warns about the upper layer the overlay keeps
+  there: Asterinas leaves ext2's extended-attribute hash unset and miscounts the
+  blocks an attribute occupies. Do not run a
+  repairing e2fsck against a state disk you care about, because it would "fix" the
+  hashes and lose the overlay's files. See gotcha 14 in [README.md](README.md).
 * `poweroff -f` reports Failed to power off the system and halts the machine:
   Asterinas implements no ACPI power-off. The launcher waits for
   `Halting the machine` and stops QEMU itself, because QEMU does not exit when the

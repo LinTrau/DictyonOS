@@ -250,8 +250,10 @@ dump_state() {
     # e2fsck prints the path it was given, so cd into the directory and hand it
     # the bare name: the transcript then carries no absolute host path.
     echo "== $label: e2fsck -fn $base =="
-    if ! (cd "$(dirname "$STATE")" && LC_ALL=C e2fsck -fn "$base") 2>&1; then
-      echo "e2fsck exit status: $?"
+    rc=0
+    (cd "$(dirname "$STATE")" && LC_ALL=C e2fsck -fn "$base") 2>&1 || rc=$?
+    if [ "$rc" -ne 0 ]; then
+      echo "e2fsck exit status: $rc"
     fi
     for f in /persist-early /persist-late /log/state-sync/current; do
       echo "== $f =="
@@ -368,10 +370,17 @@ auto_boot1() {
   # logs "block: failed to do Write ... IoError", which reads like a state-disk
   # failure but is not one.
   auto "echo ---- persist ----; echo early > /var/persist-early; sync -f /var/persist-early; echo targeted-sync-exit=\$?; cat /var/persist-early"
-  auto "echo ---- disks ----; mount | grep -E 'vda|vdb|/var'"
+  auto "echo ---- disks ----; mount | grep -E 'vda|vdb|nix/store|/var'"
   auto "echo ---- net ----; ip -o addr 2>/dev/null | head -4; cat /etc/resolv.conf 2>/dev/null; netstat -ltn 2>/dev/null | grep :22"
   auto "echo ---- LIX ----; nix --version"
   auto "nix eval --expr '1 + 1'"
+  # The store is an overlay now, so prove the guest can really write into it:
+  # one plain store object, then a real build through the daemon. Both land in
+  # /var/nix-store-upper on /dev/vdb, which is what lets boot 2 find them.
+  # Only syncfs() on the state disk is asked for, for the reason given above.
+  auto "echo ---- store write ----; echo built-in-the-guest > /tmp/dictyonos-store-write.txt; nix store add-file /tmp/dictyonos-store-write.txt; echo add-file-exit=\$?; sync -f /var"
+  auto "echo ---- build ----; nix build --no-link --print-out-paths --expr \"derivation { name = ''dictyonos-build-test''; system = ''x86_64-linux''; builder = ''/bin/sh''; args = [ ''-c'' ''echo built-in-the-guest > \\\$out'' ]; }\"; echo build-exit=\$?; sync -f /var"
+  auto "echo ---- built content ----; ls -ld /nix/store/*-dictyonos-build-test /nix/store/*-dictyonos-store-write.txt; cat /nix/store/*-dictyonos-build-test; cat /nix/store/*-dictyonos-store-write.txt"
   # The late half of the round-trip deliberately syncs nothing itself: it waits
   # for the state-sync service's next tick, so the host-side debugfs read proves
   # the service (rather than this shell) committed the state disk.
@@ -389,10 +398,11 @@ auto_boot2() {
   auto "echo ---- persistence ----; cat /var/persist-early; cat /var/persist-late; ls -l /var/persist-early /var/persist-late"
   auto "echo ---- host key ----; dropbearkey -y -f /var/lib/dropbear/dropbear_ed25519_host_key | tail -2"
   auto "echo ---- state-sync log ----; tail -3 /var/log/state-sync/current"
+  auto "echo ---- store persistence ----; ls -ld /nix/store/*-dictyonos-build-test /nix/store/*-dictyonos-store-write.txt; cat /nix/store/*-dictyonos-build-test; cat /nix/store/*-dictyonos-store-write.txt"
   # The verdict is printed with its first word split off, so that this command
   # line -- which the tty echoes back -- does not itself contain the string the
   # host searches the transcript for.
-  auto "if [ \"\$(cat /var/persist-early 2>/dev/null)\" = early ] && [ \"\$(cat /var/persist-late 2>/dev/null)\" = late ]; then echo REBOOT-PERSISTENCE-\"OK\"; else echo REBOOT-PERSISTENCE-\"FAILED\"; fi"
+  auto "if [ \"\$(cat /var/persist-early 2>/dev/null)\" = early ] && [ \"\$(cat /var/persist-late 2>/dev/null)\" = late ] && [ -e \"\$(ls -d /nix/store/*-dictyonos-build-test 2>/dev/null)\" ]; then echo REBOOT-PERSISTENCE-\"OK\"; else echo REBOOT-PERSISTENCE-\"FAILED\"; fi"
   auto "echo DICTYONOS-DONE"
   sleep 1
   echo "poweroff -f"
