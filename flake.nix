@@ -76,7 +76,12 @@
         lixPkgs = import nixpkgs-lix { inherit system; };
         sixos-src = sixos;
         infuse-src = infuse;
-        kernelElf = "${kernel}/asterinas-osdk-bin.elf";
+        # kernelElf is deliberately NOT passed: embedding the kernel in the
+        # system image would make <configuration>/boot/kernel a reference to the
+        # payload, and Nix's reference scanner follows the store paths its debug
+        # info mentions -- which drags the entire Rust toolchain into the image
+        # closure (4.3 GiB instead of 0.9 GiB). QEMU gets the kernel through
+        # -kernel anyway, so the image keeps the place-holder.
       };
 
       rootfs = import ./rootfs.nix {

@@ -49,6 +49,15 @@ let
     export OSDK_BUILD_HOSTNAME="${buildHost}"
     export KBUILD_BUILD_USER="$OSDK_BUILD_USERNAME"
     export KBUILD_BUILD_HOST="$OSDK_BUILD_HOSTNAME"
+
+    # Keep absolute store paths out of the payload. rustc records the source path
+    # of every compilation unit in panic messages, Nix's reference scanner then
+    # treats the kernel as depending on its entire build toolchain (a 3.6 GiB
+    # closure for a 21 MiB artifact). Remapping the two roots that leak keeps the
+    # closure honest. OSDK sets RUSTFLAGS itself, hence appending rather than
+    # overriding.
+    export RUSTFLAGS="''${RUSTFLAGS:+$RUSTFLAGS }--remap-path-prefix=${pkgs.asterinas-rust-toolchain}=/rust --remap-path-prefix=${vendor}=/vendor"
+    export RUSTFLAGS
     exec "$real_cargo" "$@"
   '';
 
@@ -67,6 +76,9 @@ pkgs.stdenv.mkDerivation (finalAttrs: {
 
   nativeBuildInputs = [
     pkgs.asterinas-rust-toolchain
+    # The microvm scheme asks cargo-osdk to strip the payload, which it does by
+    # invoking rust-strip from cargo-binutils.
+    pkgs.cargo-binutils
     # scripts/vendor-git-deps.py
     pkgs.python3
   ];
@@ -129,14 +141,16 @@ pkgs.stdenv.mkDerivation (finalAttrs: {
         --offline
     )
 
-    # vmm-direct is exactly the bare multiboot2 ELF QEMU wants for -kernel; it
-    # skips the grub-rescue-iso path (and grub-mkrescue) the root OSDK manifest
-    # defaults to.
+    # The microvm scheme is vmm-direct -- the bare multiboot2 ELF QEMU wants for
+    # -kernel -- and additionally asks cargo-osdk to strip the payload, which is
+    # what the upstream project does for this boot protocol. Stripping matters
+    # beyond size: unstripped DWARF names every store path it was built from, and
+    # Nix's reference scanner would follow them.
     echo "==> cargo osdk build"
     (
       cd source/kernel
       "$CARGO_HOME/bin/cargo-osdk" osdk build \
-        --boot-method vmm-direct \
+        --scheme microvm \
         --target-arch x86_64 \
         --kcmd-args="loglevel=warn" \
         --kcmd-args="earlycon" \

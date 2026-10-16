@@ -186,6 +186,14 @@ if [ "${AUTO:-0}" = "1" ]; then
     sleep 3
     echo "echo ---- s6 ----; ls /run/s6-rc /run/service 2>/dev/null"
     sleep 3
+    echo "echo ---- boot env ----; cat /run/boot/init /run/boot/configuration 2>/dev/null; ls -l /run/current-system /bin/sh /usr/bin/env 2>&1"
+    sleep 3
+    # If sixos' activation got as far as s6-rc-init there is a live directory
+    # and every service is up. If not, it aborted -- trace it, because that
+    # leaves the machine with nothing but the s6-linux-init early getty and no
+    # way to tell why from the console.
+    echo "echo ---- activate ----; if [ ! -d /run/s6-rc ]; then bash -x $CONFIG/bin/activate 2>&1 | tail -30; else echo activation-completed; fi"
+    sleep 8
     echo "echo ---- disks ----; mount | grep -E 'vda|vdb|/var'"
     sleep 2
     echo "echo ---- net ----; ip -o addr 2>/dev/null | head -4; cat /etc/resolv.conf 2>/dev/null"

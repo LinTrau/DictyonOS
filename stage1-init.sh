@@ -87,6 +87,21 @@ $BB mkdir -p "$NEWROOT/var/log" "$NEWROOT/var/root" "$NEWROOT/var/nix-var"
 # stays with the read-only image.
 $BB mount --bind "$NEWROOT/var/nix-var" "$NEWROOT/nix/var"
 
+# Lix insists on making its store writable before it opens the store database
+# (LocalStore::makeStoreWritable in libstore/local-store.cc):
+#
+#     mount("", /nix/store, "none", MS_REMOUNT | MS_BIND, 0)
+#
+# The kernel only accepts that when the target is the root of a mount, otherwise
+# it is EINVAL -- and Lix then refuses to run at all ("remounting /nix/store
+# writable: Invalid argument"), including for pure evaluations such as
+# `nix eval --expr '1 + 1'`. NixOS has the store on a mount of its own; here a
+# self-bind is enough to give the kernel something to remount. It does not make
+# the image writable: the superblock stays read-only because the disk is, so
+# this only clears the per-mount flag.
+$BB mount --bind "$NEWROOT/nix/store" "$NEWROOT/nix/store" \
+    || msg "warning: could not bind-mount /nix/store onto itself; Lix may refuse to run"
+
 # --- hand the pseudo filesystems over ---------------------------------------
 $BB mkdir -p "$NEWROOT/proc" "$NEWROOT/sys" "$NEWROOT/dev" "$NEWROOT/run"
 

@@ -290,7 +290,7 @@ let
       doas-conf = [ "permit nopass root" ];
 
       # Deliberately minimal target set: no mdevd (Asterinas has no netlink
-      # hotplug daemon), no dnscache, no sshd, no syslog.
+      # hotplug daemon), no dnscache, no syslog.
       targets = {
         default = hostFinal.six.mkBundle { };
         global.mounts = hostFinal.six.mkBundle { passthru.before = [ hostFinal.targets.default ]; };

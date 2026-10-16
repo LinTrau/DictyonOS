@@ -11,7 +11,7 @@
 #   /etc/nix/nix.conf                                               -> configuration
 #   /etc/iproute2                                                   -> configuration
 #   /etc/resolv.conf                                                -> /run (writable)
-#   /bin/sh, /usr/bin/env                                           -> configuration/sw/bin
+#   /bin/sh, /usr/bin/env                       -> /run/current-system/sw/bin
 #   /root                                                           -> /var/root
 #   /nix/var/nix/profiles/nextboot                                  -> configuration
 #   /{proc,sys,dev,run,tmp,var}                                     -> mount points
@@ -30,6 +30,16 @@
 # boot. Pre-creating them keeps that branch from running: not only does it call
 # chattr (which Asterinas' ext2 does not implement), it would also write to a
 # read-only filesystem.
+#
+# The exact *targets* matter as much as the links themselves.  sixos' activate
+# script re-links /bin/sh and /usr/bin/env after comparing readlink(1)'s output
+# against the literal string /run/current-system/sw/bin/{sh,env}; if the link
+# points somewhere else it runs `ln -sfT`, which cannot succeed on a read-only
+# filesystem, and because activate runs under `set -e` it would abort before
+# ever reaching s6-rc-init -- leaving the machine stuck in the s6-linux-init
+# early getty with no services at all.  Pointing these two links at the literal
+# paths activate expects makes both comparisons false, so the whole linkify pass
+# becomes a no-op.
 {
   pkgs,
   configuration,
@@ -72,8 +82,11 @@ pkgs.stdenvNoCC.mkDerivation {
     for f in passwd group hosts services protocols doas.conf profile; do
       ln -sfn "$cfg/etc/$f" "$root/etc/$f"
     done
-    ln -sfn "$cfg/sw/bin/sh"  "$root/bin/sh"
-    ln -sfn "$cfg/sw/bin/env" "$root/usr/bin/env"
+    # NB: /run/current-system is a symlink to this same configuration; activate
+    # creates it before it touches /bin/sh, and only after that does anything
+    # need /bin/sh at all (s6-linux-init and rc.init use absolute paths).
+    ln -sfn /run/current-system/sw/bin/sh  "$root/bin/sh"
+    ln -sfn /run/current-system/sw/bin/env "$root/usr/bin/env"
     ln -sfn "$cfg" "$root/nix/var/nix/profiles/nextboot"
 
     mkdir -p "$root/etc/nix"
