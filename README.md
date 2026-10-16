@@ -17,6 +17,105 @@ Everything -- including the Asterinas kernel -- is built from source by
 `nix build`. A `git clone` followed by a single `nix run` is the whole
 workflow: there is no prebuilt artifact in the tree and no manual kernel step.
 
+## Status & Rationale (Why this stack?)
+
+**Status.** `dictyonos` is an experimental hobby project and an architectural
+proof of concept, not a distribution. It answers one narrow question -- can
+three independently evolving projects be woven into a system that boots, with
+none of them modified? -- and the honest answer is "yes, so far, in a QEMU VM".
+There is no installer, no upgrade path, no security response process, and no
+claim of production readiness. The tree also carries small pieces of
+scaffolding that exist only because some upstream has not grown the feature
+yet; each is commented with the limitation that forced it, and *Upstream gotchas
+found the hard way* below is really a to-do list for those upstreams. The
+intention is that this scaffolding shrinks as they evolve.
+
+The constraint that keeps the experiment tractable is that this repository
+stays a paper-thin, non-invasive glue layer. Asterinas, sixos, infuse.nix and
+Lix are consumed at pinned revisions and patched nowhere; what lives here is Nix
+expressions, one early-boot shell script and one launcher script. Some of that
+glue is admittedly load-bearing rather than disposable -- the kernel is built as
+a pure Nix derivation over a vendored cargo registry, and stage1 works around
+two Asterinas gaps we found the hard way -- but none of it required touching
+upstream.
+
+Why *these* three, though? Interesting projects are not hard to line up; the
+real question is whether the pieces reinforce each other. Four ways in which
+they do:
+
+### A small trusted computing base, with memory safety where it counts
+
+A conventional Linux system puts an enormous amount of code in harm's way: a C
+kernel of tens of millions of lines, plus privileged daemons written in C and
+C++ -- `systemd` as PID 1, `udev`, the original `nix-daemon`. Here the kernel is
+Asterinas' framekernel, which confines every `unsafe` block to a small OSTD
+frame so that drivers and kernel services are written in Safe Rust, and the
+userland above it is chosen for the opposite property: `s6-svscan` supervises
+the machine with `fork`/`exec`, pipes and signals, and `s6-rc` reads a static
+database compiled at build time, so nothing at runtime parses configuration or
+talks to a bus.
+
+It is worth being precise, because "memory-safe distribution" would be an
+overclaim: busybox, `s6` itself, dropbear and Lix (C++, incrementally adopting
+Rust) are not memory-safe, and they run as root. The narrower and more useful
+statement is that the *large* privileged component -- the kernel -- is the
+memory-safe one, and that everything above it is deliberately small enough to
+audit. Measured in this tree: the kernel payload is 19.9 MB and its Nix closure
+is exactly itself, with zero references to anything else; the userspace closure
+is 1011.8 MB of store paths packed into a 639 MiB image.
+
+### One mental model, from packages to services
+
+NixOS has a well-known seam in it. Packages are functions -- `callPackage`,
+overlays, `overrideAttrs` -- but services live somewhere else entirely: a NixOS
+module system with its own evaluation model, feeding `systemd` units with their
+own state machine. Two mental models, one system, and a global option-tree
+evaluation whose cost shows up in every rebuild.
+
+sixos removes the seam. A service here *is* a derivation and a target *is* a
+bundle; both are composed with ordinary Nix functions and `infuse.nix`
+combinators, and the whole graph is compiled into an `s6-rc` database at build
+time. `default.nix` in this repository is under five hundred lines and defines
+every service the machine runs -- including the ordering constraints -- with no
+module system, no `config`/`mkIf` indirection and no global option tree. That is what
+makes a project this small able to reason about the whole system: the build
+either produces a coherent service graph or fails.
+
+### Low impedance between a young kernel and its userland
+
+`systemd` is not merely large; it is entangled with Linux-specific behaviour --
+cgroup hierarchies, mount-propagation rules, netlink and `udev` events, and a
+long tail of syscalls and pseudo-filesystems. Reimplementing enough of that to
+satisfy it is a serious burden for a kernel that is still growing its Linux ABI,
+and it is precisely the burden Asterinas would otherwise have to carry.
+
+`s6` asks for very little: `fork`, `exec`, signals, pipes, file descriptors. Its
+supervisor tree is orthogonal POSIX primitives all the way down, and `s6-rc`
+reads a compiled database rather than interpreting one. The fit is good enough
+that the service set here comes up within about a second of guest time on a
+kernel that does not implement `rseq`, has no netlink, no ACPI power-off and no
+working `kexec`. Where Asterinas does have gaps they are shallow and
+enumerable -- it cannot bind an IPv4 wildcard address, which is gotcha 8 -- and
+that is a far better failure mode than a service manager that hangs halfway
+through boot.
+
+### A plausible substrate for microVMs and confidential computing
+
+This part is not implemented here, and it is worth saying so plainly: what
+follows is a reason to care about the *shape* of the stack, not a feature of
+this repository. But three properties line up in that direction. A kernel whose
+`unsafe` surface is small enough to audit -- and, eventually, to verify -- is the
+right trusted computing base for a confidential-computing guest (Intel TDX, AMD
+SEV-SNP), where the guest kernel is part of what gets measured and attested.
+A supervision tree built out of `fork`/`exec` and signals, with no daemon bus and
+no interpreted configuration, gives a short and deterministic cold start, which
+is what a serverless microVM is actually judged on. And a Lix store of
+content-addressed, reproducible closures is the thing an immutable node or an
+attested guest needs in order to say what it is running. Put those together with
+a read-only system image and a small writable state disk -- as this repository
+does -- and the shape of a disposable, measurable guest is already visible.
+Whether these three projects mature into that together is exactly the open
+question this experiment is poking at.
 ## Boot flow
 
 ``````````
