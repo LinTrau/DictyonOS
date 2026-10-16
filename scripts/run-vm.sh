@@ -202,6 +202,11 @@ if [ "${AUTO:-0}" = "1" ]; then
     sleep 5
     echo "echo ---- svclogs ----; echo '== ssh'; tail -25 /var/log/ssh/current 2>&1; echo '== lix-daemon'; tail -8 /var/log/lix-daemon/current 2>&1; echo '== hwclock'; tail -8 /var/log/hwclock-fake-updater/current 2>&1"
     sleep 5
+    # Persistence round-trip, run *before* anything else touches the store, so
+    # that a failure here isolates the state disk rather than blaming whatever
+    # Lix did to /nix/store's mount a moment later.
+    echo "echo ---- persist ----; echo early > /var/persist-early; sync; cat /var/persist-early"
+    sleep 3
     echo "echo ---- disks ----; mount | grep -E 'vda|vdb|/var'"
     sleep 2
     echo "echo ---- net ----; ip -o addr 2>/dev/null | head -4; cat /etc/resolv.conf 2>/dev/null; netstat -ltn 2>/dev/null | grep :22"
@@ -210,10 +215,11 @@ if [ "${AUTO:-0}" = "1" ]; then
     sleep 3
     echo "nix eval --expr '1 + 1'"
     sleep 4
-    # Prove the state disk is a real, writable, persistent filesystem: write a
-    # file to /var (which stage1 grafted over /dev/vdb), sync it, read it back.
-    # The host-side check that it survived is a debugfs read of state.ext2.
-    echo "echo ---- persist ----; echo persisted > /var/persist-test; sync; cat /var/persist-test; ls -l /var/persist-test"
+    # Same round-trip again, now that Lix has been run.  Its makeStoreWritable()
+    # remount is the only thing in this system that writes to the read-only
+    # system disk's mount, so comparing the two syncs says whether the I/O error
+    # belongs to the state disk or to that.
+    echo "echo ---- persist2 ----; echo late > /var/persist-late; sync; cat /var/persist-late; ls -l /var/persist-late /var/persist-early"
     sleep 3
     echo "echo DICTYONOS-DONE"
     sleep 2

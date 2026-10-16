@@ -221,7 +221,15 @@ closure into the image instead of a 20 MB one.
 * **`ssh` is public-key only.** The launcher generates a throwaway keypair,
   passes the public half on the kernel command line, and the service writes it
   to `/root/.ssh/authorized_keys` (which lives on the state disk). dropbear
-  runs with `-s`, so password logins are off by construction.
+  runs with `-s`, so password logins are off by construction, and it listens on
+  the interface address it discovers (see gotcha 8) rather than the wildcard.
+* **`has-hwclock` is on.** Asterinas has no RTC driver, so the tag is not
+  literally true -- but it is what stops sixos from installing its
+  *file-backed* fake hwclock (`hwclock-fake` + `hwclock-fake-updater`, which
+  `redirfd` a state file into `/etc` and therefore die and get restarted about
+  once a second on a read-only root). With the tag on, sixos installs its real
+  `hwclock` oneshot instead, whose scripts end in `|| true` and cannot fail or
+  spin.
 
 ## Upstream gotchas found the hard way
 
@@ -268,6 +276,25 @@ closure into the image instead of a 20 MB one.
 7. **`fs.protected_hardlinks` blocks hardlinking the store.** Anyone assembling
    the image by hand with `cp -al` hits `EPERM`. Building it inside the sandbox
    (as `rootfs.nix` does) sidesteps this entirely.
+8. **Asterinas cannot bind an IPv4 wildcard address.** `bind()` resolves its
+   argument in a local routing table
+   (`kernel/core/src/net/route/mod.rs:lookup_local_iface`) and answers
+   `EADDRNOTAVAIL` for anything that is not a local address -- `0.0.0.0` and
+   `::` included, so the usual `listen(0.0.0.0:22)` cannot work at all. A plain
+   dropbear `-p 22` is worse: it takes the IPv6 wildcard from getaddrinfo,
+   fails on `IPV6_V6ONLY` and `bind(::)`, and exits with "No listening ports
+   available" without ever trying IPv4. The `ssh` service therefore waits for
+   the NIC to have a routable address and binds that address.
+9. **dropbear validates the login shell through `/etc/shells`.** With the file
+   absent glibc's `getusershell(3)` falls back to "/bin/sh,/bin/csh", and
+   root's shell in a sixos-generated `passwd` is a store path -- so every login
+   is refused with "User 'root' has invalid shell, rejected" even though the
+   key was accepted. `rootfs.nix` writes `/etc/shells` from `passwd` itself.
+10. **sixos' generated `finish.user` scripts carry `-Ws4`.** `execlineb -W -s 4`
+    demands four positional parameters, so every restart of a dying service
+    prints `execlineb: fatal: too few arguments: expecting at least 4 but got 3`
+    on the console. It is a symptom, not a cause: fix the service that keeps
+    dying and the noise stops.
 
 ## Verifying
 
@@ -296,9 +323,13 @@ output captured, so a silent abort still leaves evidence. A captured run is in
   one.
 * Syscall 334 (`rseq`) is unimplemented and logged once per process start;
   glibc handles `ENOSYS` gracefully.
-* `hwclock-fake-updater` cannot write its state file (there is no hardware
-  clock, and `/etc` is read-only). It fails every minute and the failure lands
-  in `/var/log/hwclock-fake-updater/` on the state disk, not on the console.
+* **No INET wildcard bind** (gotcha 8): a service that wants "all interfaces"
+  has to enumerate the addresses it actually has.
+* **Writes to the state disk are only durable after a `sync`.** Asterinas
+  caches block writes, and its shutdown path aborts its final flush with an I/O
+  error against the read-only system disk, so a session that is killed without
+  syncing loses whatever had not been written out yet. The acceptance writes,
+  `sync`s and reads back `/var/persist-test` for exactly this reason.
 
 ## License & Upstream Credits
 
