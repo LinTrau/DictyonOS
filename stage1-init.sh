@@ -75,7 +75,12 @@ msg "handing off to $FOUND/boot/init"
 # --- writable state ---------------------------------------------------------
 # /dev/vdb holds everything mutable. Without it the machine still boots, with
 # /var on a tmpfs -- useful for a throwaway run, but nothing is kept.
-if [ -b /dev/vdb ] && $BB mount -t ext2 -o rw /dev/vdb "$NEWROOT/var"; then
+# 'sync' is load-bearing: Asterinas does no background writeback, and the
+# system-wide sync(2) trips over a write it should never have issued to the
+# read-only system disk, giving up before the state disk's pages are written.
+# Mounting synchronously sidesteps both problems -- every write lands on the
+# state disk as it happens.
+if [ -b /dev/vdb ] && $BB mount -t ext2 -o rw,sync /dev/vdb "$NEWROOT/var"; then
     msg "mounted writable state disk /dev/vdb on /var"
 else
     msg "no state disk; /var will be a tmpfs and nothing will persist"

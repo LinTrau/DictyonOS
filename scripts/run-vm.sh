@@ -205,7 +205,7 @@ if [ "${AUTO:-0}" = "1" ]; then
     # Persistence round-trip, run *before* anything else touches the store, so
     # that a failure here isolates the state disk rather than blaming whatever
     # Lix did to /nix/store's mount a moment later.
-    echo "echo ---- persist ----; echo early > /var/persist-early; sync; cat /var/persist-early"
+    echo "echo ---- persist ----; echo early > /var/persist-early; sync -f /var/persist-early; echo targeted-sync-exit=\$?; sync; cat /var/persist-early"
     sleep 3
     echo "echo ---- disks ----; mount | grep -E 'vda|vdb|/var'"
     sleep 2
