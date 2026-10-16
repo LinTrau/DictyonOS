@@ -53,6 +53,15 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
+          # The annotation is the release body, so the tag object itself has
+          # to be here: actions/checkout can leave refs/tags/<name> pointing
+          # straight at the commit, and %(contents:*) on such a ref reads the
+          # commit message instead of the annotation.
+          git fetch --force origin "refs/tags/$GITHUB_REF_NAME:refs/tags/$GITHUB_REF_NAME"
+          if [ "$(git cat-file -t "refs/tags/$GITHUB_REF_NAME")" != tag ]; then
+            echo "::error::refs/tags/$GITHUB_REF_NAME is not an annotated tag, and its annotation is the release body"
+            exit 1
+          fi
           title=$(git for-each-ref --format='%(contents:subject)' "refs/tags/$GITHUB_REF_NAME")
           body=$(git for-each-ref --format='%(contents:body)' "refs/tags/$GITHUB_REF_NAME")
           archive="dist/dictyonos-$GITHUB_REF_NAME-x86_64-qemu.tar.zst"
