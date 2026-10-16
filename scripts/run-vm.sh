@@ -182,28 +182,27 @@ if [ "${AUTO:-0}" = "1" ]; then
     sleep 2
     echo "cat /proc/version 2>/dev/null; cat /proc/1/comm 2>/dev/null"
     sleep 2
-    echo "echo ---- PID 1 ----; readlink /proc/1/exe; ps aux 2>/dev/null | head -20"
+    echo "echo ---- PID 1 ----; readlink /proc/1/exe; ps aux 2>/dev/null"
     sleep 3
-    echo "echo ---- s6 ----; ls /run/s6-rc /run/service 2>/dev/null"
-    sleep 3
-    echo "echo ---- boot env ----; cat /run/boot/init /run/boot/configuration 2>/dev/null; ls -l /run/current-system /bin/sh /usr/bin/env 2>&1"
-    sleep 3
-    # If sixos' activation got as far as s6-rc-init there is a live directory
-    # and every service is up. If not, it aborted -- trace it, because that
-    # leaves the machine with nothing but the s6-linux-init early getty and no
-    # way to tell why from the console.
-    echo "echo ---- activate ----; if [ ! -d /run/s6-rc ]; then $CONFIG/bin/activate >/var/log/activate.log 2>&1; echo activate-exit=\$?; tail -40 /var/log/activate.log; else echo activation-completed; fi"
-    sleep 8
+    # Non-empty means sixos' activation reached s6-rc-init. If it did not, it
+    # aborted somewhere in its linkify pass and the machine is sitting in the
+    # s6-linux-init early getty with no services at all.
+    echo "echo ---- s6 ----; if [ -d /run/s6-rc ]; then echo activation-completed; else echo activation-FAILED; fi; ls /run/service"
+    sleep 4
+    echo "echo ---- svstat ----; for s in ssh ssh-log lix-daemon lix-daemon-log hwclock-fake-updater s6rc-oneshot-runner; do s6-svstat /run/service/\$s; done 2>&1"
+    sleep 5
+    echo "echo ---- svclogs ----; echo '== ssh'; tail -25 /var/log/ssh/current 2>&1; echo '== lix-daemon'; tail -8 /var/log/lix-daemon/current 2>&1; echo '== hwclock'; tail -8 /var/log/hwclock-fake-updater/current 2>&1"
+    sleep 5
     echo "echo ---- disks ----; mount | grep -E 'vda|vdb|/var'"
     sleep 2
-    echo "echo ---- net ----; ip -o addr 2>/dev/null | head -4; cat /etc/resolv.conf 2>/dev/null"
-    sleep 3
-    echo "echo ---- ssh ----; netstat -ltn 2>/dev/null | grep :22; ls -l /var/lib/dropbear 2>/dev/null"
+    echo "echo ---- net ----; ip -o addr 2>/dev/null | head -4; cat /etc/resolv.conf 2>/dev/null; netstat -ltn 2>/dev/null | grep :22"
     sleep 3
     echo "echo ---- LIX ----; nix --version"
     sleep 3
     echo "nix eval --expr '1 + 1'"
     sleep 4
+    echo "echo ---- sync ----; sync; echo sync-exit=\$?"
+    sleep 3
     echo "echo DICTYONOS-DONE"
     sleep 2
     echo "poweroff -f"
