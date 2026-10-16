@@ -227,7 +227,19 @@ let
         has-initrd-mount-root = false;
         has-initrd-switch-root = false;
         is-bootloader-grub = false;
-        has-hwclock = false;
+        # "The machine has a hardware clock."  Asterinas has no RTC driver, so
+        # that is not literally true, but the tag's only two effects here are
+        # both wanted:
+        #   * it stops sixos from installing its *file-backed* fake hwclock
+        #     (hwclock-fake + hwclock-fake-updater, which redirfd a state file
+        #     into /etc).  On a read-only root that dies immediately and
+        #     s6-supervise restarts it about once a second, forever -- taking
+        #     the whole console with it, since every death also runs sixos'
+        #     generated finish.user, which prints "execlineb: fatal: ...".
+        #   * it installs the real hwclock oneshot instead, whose scripts end in
+        #     "|| true" and therefore cannot fail or spin.
+        # Either way the clock at boot comes from the kernel.
+        has-hwclock = true;
         system-isx86_64 = false;
       };
 
