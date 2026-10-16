@@ -1,5 +1,7 @@
 # dictyonos
 
+[**English**](README.md) | [简体中文](README.zh-CN.md)
+
 A bootable QEMU machine that fuses three independent upstream projects:
 
 | layer | upstream | role |
