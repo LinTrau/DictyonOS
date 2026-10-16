@@ -16,7 +16,7 @@
       flake = false;
     };
 
-    # sixos' s6-rc patch series (sixos/pkgs/patches/s6-rc) only applies to the
+    # sixos s6-rc patch series (sixos/pkgs/patches/s6-rc) only applies to the
     # 24.05 s6-rc, so this revision is load-bearing.
     nixpkgs-sixos = {
       url = "github:NixOS/nixpkgs/nixos-24.05";
@@ -28,20 +28,11 @@
     #
     # This is a release branch rather than nixos-unstable on purpose: the
     # unstable revision at the time of writing ships a Lix whose meson options
-    # no longer match its build script ("ERROR: Unknown option: mimalloc"), and
+    # no longer match its build script (ERROR: Unknown option: mimalloc), and
     # release branches are guaranteed to be fully substituted. 26.05 is also the
-    # channel Asterinas' own NixOS distro targets.
+    # channel the Asterinas NixOS distro targets.
     nixpkgs-lix = {
       url = "github:NixOS/nixpkgs/nixos-26.05";
-      flake = false;
-    };
-
-    # The Asterinas kernel payload produced by ./scripts/build-kernel.sh.
-    # Declared as a path input so it is read from the working tree rather than
-    # from the git-filtered flake source (the payload is a large, untracked
-    # build artifact).
-    kernel = {
-      url = "path:./kernel";
       flake = false;
     };
   };
@@ -54,11 +45,30 @@
       infuse,
       nixpkgs-sixos,
       nixpkgs-lix,
-      kernel,
     }:
     let
       system = "x86_64-linux";
       lib = import (nixpkgs-sixos + "/lib");
+
+      # Run the kernel build in the packageset Asterinas itself pins, with its
+      # own overlay applied: that is what supplies the matching Rust nightly and
+      # the prebuilt Linux vDSOs the kernel embeds.
+      pkgsKernel = import asterinas.inputs.nixpkgs.outPath {
+        inherit system;
+        overlays = [ asterinas.overlays.default ];
+      };
+
+      vendor = import ./vendor.nix {
+        pkgs = pkgsKernel;
+        inherit asterinas;
+        rustToolchain = pkgsKernel.asterinas-rust-toolchain;
+      };
+
+      kernel = import ./kernel.nix {
+        pkgs = pkgsKernel;
+        inherit lib asterinas;
+        inherit (vendor) cargoConfig vendor;
+      };
 
       dictyonos = import ./default.nix {
         inherit system;
@@ -66,13 +76,7 @@
         lixPkgs = import nixpkgs-lix { inherit system; };
         sixos-src = sixos;
         infuse-src = infuse;
-        # Optional: when the payload has not been built yet, fall back to a
-        # place-holder so every output still evaluates from a bare clone.
-        kernelElf =
-          let
-            payload = kernel + "/asterinas-osdk-bin.elf";
-          in
-          if builtins.pathExists payload then payload else null;
+        kernelElf = "${kernel}/asterinas-osdk-bin.elf";
       };
 
       rootfs = import ./rootfs.nix {
@@ -81,19 +85,15 @@
       };
 
       # One-shot launcher: bakes every artifact path in and defers to the
-      # script, which still accepts KERNEL_ELF / INITRAMFS / ROOTFS / CONFIG
-      # overrides.
+      # script, which still accepts the DICTYONOS_* overrides. e2fsprogs and
+      # openssh are put on PATH because the launcher creates the state disk and
+      # the throwaway ssh keypair.
       runVm = dictyonos.pkgs.writeShellScriptBin "dictyonos-run-vm" ''
-        export DICTYONOS_PACKAGED=1
+        export PATH="${dictyonos.pkgs.e2fsprogs}/bin:${dictyonos.pkgs.openssh}/bin:$PATH"
+        export DICTYONOS_KERNEL_ELF=${kernel}/asterinas-osdk-bin.elf
         export DICTYONOS_INITRAMFS=${dictyonos.initramfs}/initrd
         export DICTYONOS_ROOTFS=${rootfs}
         export DICTYONOS_CONFIG=${dictyonos.configuration}
-        ${lib.optionalString dictyonos.haveKernel "export DICTYONOS_KERNEL_ELF=${dictyonos.kernelPayload}"}
-        # Bare 'nix run' from the checkout: pick up the locally built payload.
-        if [ -z "''${DICTYONOS_KERNEL_ELF:-}" ]; then
-          DICTYONOS_KERNEL_ELF="$PWD/kernel/asterinas-osdk-bin.elf"
-          export DICTYONOS_KERNEL_ELF
-        fi
         exec ${./scripts/run-vm.sh} "$@"
       '';
     in
@@ -102,20 +102,12 @@
         # nix build / nix run without an attribute.
         default = rootfs;
 
-        inherit rootfs;
+        inherit rootfs kernel;
         inherit (dictyonos) initramfs;
 
         # The sixos top-level configuration derivation (what ownerboot/kexec
         # would normally have handed to the kernel).
         system = dictyonos.configuration;
-
-        # Source tree of the pinned Asterinas checkout; scripts/build-kernel.sh
-        # uses this when it is not running against a sibling working copy.
-        # Wrapped in a derivation (a symlink) so it behaves like every other
-        # output rather than making 'nix flake show' complain.
-        asterinas-source = dictyonos.pkgs.runCommand "asterinas-source" { } ''
-          ln -s ${asterinas.outPath} $out
-        '';
       };
 
       apps.${system}.default = {
@@ -124,7 +116,7 @@
       };
 
       devShells.${system} = {
-        # The Asterinas toolchain (Rust nightly + OSDK prerequisites).
+        # The Asterinas toolchain, for hacking on the kernel itself.
         default = asterinas.devShells.${system}.default;
         kernel = asterinas.devShells.${system}.default;
       };

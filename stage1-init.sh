@@ -1,12 +1,17 @@
 #!/bin/sh
 # dictyonos stage-1 init (initramfs, PID 1)
 #
-# Mounts the pseudo-filesystems, locates and mounts the ext2 root filesystem
-# that carries /nix/store plus the sixos "configuration" closure, and then
-# hands control over to the target's s6-linux-init entry point.
+# Mounts the pseudo-filesystems, mounts the read-only ext2 system image that
+# carries /nix/store plus the sixos "configuration", grafts the writable state
+# disk over /var (and /nix/var), and then hands control over to the target s6-
+# linux-init entry point.
 #
-# It deliberately avoids anything Asterinas does not implement (kexec, udev,
-# systemd) and uses only statically linked busybox applets.
+# The split matters because the system image is content-addressed and shared:
+# nothing in it may ever be written to. Everything mutable -- logs, /root, the
+# Lix daemon socket -- lives on the separate, disposable state disk.
+#
+# Deliberately minimal: static busybox applets only, and nothing Asterinas does
+# not implement (kexec, udev, systemd).
 
 BB="@busybox@/bin/busybox"
 export PATH="@busybox@/bin"
@@ -16,9 +21,9 @@ die() { echo "[dictyonos-init] FATAL: $*"; exec $BB sh; }
 
 $BB mkdir -p /proc /sys /dev /sysroot
 
-$BB mount -t proc     none     /proc  || die "mounting /proc failed"
-$BB mount -t sysfs    none     /sys   || die "mounting /sys failed"
-$BB mount -t devtmpfs devtmpfs /dev   || die "mounting /dev failed"
+$BB mount -t proc     none     /proc || die "mounting /proc failed"
+$BB mount -t sysfs    none     /sys  || die "mounting /sys failed"
+$BB mount -t devtmpfs devtmpfs /dev  || die "mounting /dev failed"
 
 CMDLINE="$($BB cat /proc/cmdline)"
 msg "kernel cmdline: $CMDLINE"
@@ -33,31 +38,24 @@ msg "configuration=$CONFIGURATION"
 
 NEWROOT=/sysroot
 
-try_mount() {
-    $BB mount -t ext2 -o rw "$1" "$NEWROOT" 2>/dev/null && return 0
-    $BB mount -t ext2 "$1" "$NEWROOT" 2>/dev/null && return 0
-    return 1
-}
-
-# Asterinas names the first virtio-blk device /dev/vda; keep a couple of
-# fallbacks so the image also boots on a plain Linux host for debugging.
+# --- read-only system image ------------------------------------------------
+# /dev/vda is attached with readonly=on. Mount it read-only regardless, so the
+# system behaves the same whether or not the launcher remembered the flag.
 ROOT=""
-for dev in /dev/vda /dev/vdb /dev/sda; do
+for dev in /dev/vda /dev/sda; do
     [ -b "$dev" ] || continue
-    if try_mount "$dev"; then ROOT="$dev"; break; fi
+    if $BB mount -t ext2 -o ro "$dev" "$NEWROOT"; then ROOT="$dev"; break; fi
 done
-
 if [ -z "$ROOT" ]; then
-    msg "available block devices:"
-    $BB ls -l /dev | $BB grep -i '^b' || true
-    die "could not mount the root filesystem"
+    msg "block devices:"
+    $BB ls -l /dev | $BB grep "^b" || true
+    die "could not mount the system image"
 fi
-msg "mounted root filesystem from $ROOT on $NEWROOT"
+msg "mounted read-only system image from $ROOT on $NEWROOT"
 
 FOUND=""
 for candidate in "$CONFIGURATION" \
-                 "$($BB readlink "$NEWROOT/nix/var/nix/profiles/nextboot" 2>/dev/null)" \
-                 "$($BB readlink "$NEWROOT/nix/var/nix/profiles/activated" 2>/dev/null)"; do
+                 "$($BB readlink "$NEWROOT/nix/var/nix/profiles/nextboot" 2>/dev/null)"; do
     [ -n "$candidate" ] || continue
     # boot/init is normally a symlink into the same /nix/store, whose target is
     # an absolute path. That path only resolves after switch_root, so test for
@@ -74,11 +72,26 @@ if [ -z "$FOUND" ]; then
 fi
 msg "handing off to $FOUND/boot/init"
 
+# --- writable state ---------------------------------------------------------
+# /dev/vdb holds everything mutable. Without it the machine still boots, with
+# /var on a tmpfs -- useful for a throwaway run, but nothing is kept.
+if [ -b /dev/vdb ] && $BB mount -t ext2 -o rw /dev/vdb "$NEWROOT/var"; then
+    msg "mounted writable state disk /dev/vdb on /var"
+else
+    msg "no state disk; /var will be a tmpfs and nothing will persist"
+    $BB mount -t tmpfs -o mode=0755 tmpfs "$NEWROOT/var"
+fi
+$BB mkdir -p "$NEWROOT/var/log" "$NEWROOT/var/root" "$NEWROOT/var/nix-var"
+
+# /nix/var is mutable too (daemon socket, profiles, gcroots) while /nix/store
+# stays with the read-only image.
+$BB mount --bind "$NEWROOT/var/nix-var" "$NEWROOT/nix/var"
+
+# --- hand the pseudo filesystems over ---------------------------------------
 $BB mkdir -p "$NEWROOT/proc" "$NEWROOT/sys" "$NEWROOT/dev" "$NEWROOT/run"
 
-# Hand the already-mounted pseudo filesystems over to the new root.
-# sixos' mount targets for /proc and /sys are intentionally no-ops because we
-# do this here (s6-linux-init itself needs a working /proc).
+# sixos' mount targets for /proc and /sys are intentionally no-ops because the
+# handoff happens here (s6-linux-init itself needs a working /proc).
 $BB mount --move /proc "$NEWROOT/proc"
 $BB mount --move /sys  "$NEWROOT/sys"
 $BB mount --move /dev  "$NEWROOT/dev"

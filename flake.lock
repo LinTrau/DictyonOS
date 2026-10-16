@@ -38,18 +38,6 @@
         "url": "https://codeberg.org/amjoseph/infuse.nix"
       }
     },
-    "kernel": {
-      "flake": false,
-      "locked": {
-        "path": "./kernel",
-        "type": "path"
-      },
-      "original": {
-        "path": "./kernel",
-        "type": "path"
-      },
-      "parent": []
-    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1784432872,
@@ -120,7 +108,6 @@
       "inputs": {
         "asterinas": "asterinas",
         "infuse": "infuse",
-        "kernel": "kernel",
         "nixpkgs-lix": "nixpkgs-lix",
         "nixpkgs-sixos": "nixpkgs-sixos",
         "sixos": "sixos"

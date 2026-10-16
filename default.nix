@@ -28,13 +28,13 @@
   sixos-src,
   infuse-src,
 
-  # The Asterinas kernel payload produced by cargo osdk build.
+  # The Asterinas kernel payload (packages.<system>.kernel), i.e.
+  # <kernel>/asterinas-osdk-bin.elf.
   #
-  # Optional on purpose. dictyonos boots with QEMU direct kernel boot, so the
-  # kernel reaches the machine through the -kernel argument and is never read
-  # out of /boot. Leaving this null keeps every package in this flake buildable
-  # from nothing but a git clone; pass the real payload to also embed it in
-  # <configuration>/boot/kernel.
+  # Optional only so that default.nix can still be evaluated on its own. Note
+  # that this must be the *store path* of a derivation output, not a path on
+  # disk: a derivation output does not exist yet at evaluation time, so probing
+  # it with builtins.pathExists would wrongly conclude there is no kernel.
   kernelElf ? null,
 
   hostName ? "dictyonos",
@@ -65,23 +65,13 @@ let
 
     This system boots with QEMU direct kernel boot, so the kernel is handed to
     the machine on the QEMU command line (-kernel) rather than read out of
-    <configuration>/boot/kernel.
-
-    To embed the real payload here as well:
-      ./scripts/build-kernel.sh
-      nix build .#rootfs --override-input kernel path:./kernel
+    <configuration>/boot/kernel. flake.nix always passes the real payload, which
+    is packages.<system>.kernel.
   '';
 
-  haveKernel = kernelElf != null && builtins.pathExists kernelElf;
+  haveKernel = kernelElf != null;
 
-  kernelPayload =
-    if haveKernel then
-      builtins.path {
-        name = "asterinas-kernel";
-        path = kernelElf;
-      }
-    else
-      kernelPlaceholder;
+  kernelPayload = if haveKernel then kernelElf else kernelPlaceholder;
 
   # ---------------- initramfs -----------------------------------------
 
@@ -137,6 +127,12 @@ let
   netScript = pkgs.writeScript "dictyonos-net-dhcp" ''
     #!${pkgs.busybox}/bin/sh
     set +e
+
+    # /etc/resolv.conf points into /run and does not exist on a fresh boot. Seed
+    # the QEMU user-mode resolver so name resolution works before (and even
+    # without) a DHCP lease.
+    [ -s /etc/resolv.conf ] || echo "nameserver 10.0.2.3" > /etc/resolv.conf
+
     ifaces="$(ls /sys/class/net 2>/dev/null)"
     for iface in $ifaces; do
       [ "$iface" = "lo" ] && continue
@@ -149,6 +145,51 @@ let
     exit 0
   '';
 
+
+  # Minimal SSH: dropbear, public-key only. The launcher generates a throwaway
+  # keypair on the host and passes the public half on the kernel command line as
+  #   dictyonos.ssh_key_type=ssh-ed25519 dictyonos.ssh_key=<base64 blob>
+  # The blob carries no whitespace, which is what makes it survive the kernel
+  # splitting /proc/cmdline on spaces.
+  sshRun = pkgs.writeScript "dropbear-run" ''
+    #!${pkgs.busybox}/bin/sh
+    exec 2>&1
+
+    KEYDIR=/var/lib/dropbear
+    AUTH=/root/.ssh/authorized_keys
+    mkdir -p "$KEYDIR" "$(dirname "$AUTH")"
+
+    ktype=""
+    kblob=""
+    for x in $(cat /proc/cmdline); do
+      case "$x" in
+        dictyonos.ssh_key_type=*) ktype="''${x#dictyonos.ssh_key_type=}" ;;
+        dictyonos.ssh_key=*)      kblob="''${x#dictyonos.ssh_key=}" ;;
+      esac
+    done
+
+    if [ -n "$kblob" ]; then
+      echo "''${ktype:-ssh-ed25519} $kblob dictyonos" > "$AUTH"
+      echo "dropbear: installed the authorized key from the kernel command line"
+    elif [ ! -s "$AUTH" ]; then
+      echo "dropbear: no authorized key; pass dictyonos.ssh_key=... or write $AUTH"
+    fi
+
+    set -- -F -E -s -p 22
+
+    # A host key on the state disk survives reboots; without one, fall back to
+    # ephemeral in-memory keys.
+    if [ ! -s "$KEYDIR/dropbear_ed25519_host_key" ]; then
+      ${pkgs.dropbear}/bin/dropbearkey -t ed25519 -f "$KEYDIR/dropbear_ed25519_host_key" >/dev/null 2>&1 || true
+    fi
+    if [ -s "$KEYDIR/dropbear_ed25519_host_key" ]; then
+      set -- "$@" -r "$KEYDIR/dropbear_ed25519_host_key"
+    else
+      set -- "$@" -R
+    fi
+
+    exec ${pkgs.dropbear}/bin/dropbear "$@"
+  '';
   # ---------------- sixos site ----------------------------------------
 
   siteDir = {
@@ -272,10 +313,13 @@ let
             fstype = "tmpfs";
             options = [ "nodev" "nosuid" "mode=1777" "size=256m" ];
           };
-          "" = hostFinal.services.mount {
-            where = "/";
-            options = [ "remount" "rw" ];
-          };
+          # The root filesystem is attached read-only on purpose -- /nix/store
+          # is a shared, content-addressed artifact and must never be written
+          # to. Mutable state lives on a separate disk that stage1 grafts over
+          # /var. Remounting / read-write would therefore both fail (EROFS) and
+          # defeat the design, so like proc/sys this is an empty bundle that
+          # exists only to satisfy the after-references other targets make.
+          "" = hostFinal.six.mkBundle { };
         };
 
         # Best-effort DHCP; guarded so a missing or unsupported NIC cannot stall
@@ -297,6 +341,12 @@ let
         # and just fails with TIOCSCTTY.
         lix-daemon = hostFinal.six.mkFunnel {
           run = lixDaemonRun;
+          passthru.after = [ hostFinal.targets.mounts."" ];
+        };
+
+        # Remote access, so the serial console is not the only way in.
+        ssh = hostFinal.six.mkFunnel {
+          run = sshRun;
           passthru.after = [ hostFinal.targets.mounts."" ];
         };
       };
