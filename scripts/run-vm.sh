@@ -198,7 +198,7 @@ if [ "${AUTO:-0}" = "1" ]; then
     # s6-linux-init early getty with no services at all.
     echo "echo ---- s6 ----; if [ -d /run/s6-rc ]; then echo activation-completed; else echo activation-FAILED; fi; ls /run/service"
     sleep 4
-    echo "echo ---- svstat ----; for s in ssh ssh-log lix-daemon lix-daemon-log hwclock-fake-updater s6rc-oneshot-runner; do s6-svstat /run/service/\$s; done 2>&1"
+    echo "echo ---- svstat ----; for s in ssh ssh-log lix-daemon lix-daemon-log s6rc-oneshot-runner; do s6-svstat /run/service/\$s; done 2>&1"
     sleep 5
     echo "echo ---- svclogs ----; echo '== ssh'; tail -25 /var/log/ssh/current 2>&1; echo '== lix-daemon'; tail -8 /var/log/lix-daemon/current 2>&1; echo '== hwclock'; tail -8 /var/log/hwclock-fake-updater/current 2>&1"
     sleep 5

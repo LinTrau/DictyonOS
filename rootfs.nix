@@ -114,6 +114,17 @@ pkgs.stdenvNoCC.mkDerivation {
       fi
     done
 
+    # /etc/shells exists for one reason: dropbear validates the login shell
+    # with getusershell(3), and when the file is missing glibc falls back to
+    # "/bin/sh,/bin/csh".  root's shell in the generated passwd is a store path
+    # (busybox' ash), so without this file every login is refused with
+    # "User 'root' has invalid shell, rejected".  Deriving the list from passwd
+    # itself keeps the two from drifting apart.
+    {
+      cut -d: -f7 "$cfg/etc/passwd" | grep -v nologin | sort -u
+      echo /bin/sh
+    } > "$root/etc/shells"
+
     # 3. root's home lives on the writable state disk, so the console shell and
     #    sshd have a writable HOME.
     ln -sfn /var/root "$root/root"
