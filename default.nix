@@ -45,15 +45,6 @@ let
 
   infuse = ((import infuse-src) { inherit lib; }).v1.infuse;
 
-  # sixos patches busybox / s6-rc / abduco, so the packageset the services are
-  # built against must carry those patches.
-  sixosOverlays = (import (sixos-src + "/pkgs/overlays.nix")) { inherit lib infuse; };
-
-  pkgs = import nixpkgs-src {
-    inherit system;
-    overlays = sixosOverlays;
-  };
-
   # Lix wraps every local build in a seccomp BPF filter, and 2.90 removed the
   # `filter-syscalls` option that used to switch it off.  Asterinas implements
   # no seccomp(2), so the first in-guest `nix build` dies with
@@ -61,7 +52,41 @@ let
   # Lix' own meson switch is the documented way out.  It costs a Lix build
   # from source instead of a substitution: that is a deliberate price for
   # having a store the guest can actually write to.
-  lix = lixPkgs.lixPackageSets.stable.lix.override { withLibseccomp = false; };
+  #
+  # That build is not in any cache, so its test suite would run on every
+  # rebuild of this flake.  It is long, and its functional tests want a
+  # sandbox a CI container does not provide, so skip it here.  Nothing in the
+  # image depends on the tests having run.
+  # (The parentheses matter: Nix' grammar attaches `.overrideAttrs` to the
+  # attribute set passed to `.override` unless the call is parenthesised.)
+  lix = (lixPkgs.lixPackageSets.stable.lix.override { withLibseccomp = false; }).overrideAttrs (_: {
+    doCheck = false;
+    doInstallCheck = false;
+  });
+
+  # sixos patches busybox / s6-rc / abduco, so the packageset the services are
+  # built against must carry those patches.
+  sixosOverlays = (import (sixos-src + "/pkgs/overlays.nix")) { inherit lib infuse; };
+
+  # The last overlay makes `nix` mean Lix everywhere in this package set.
+  # sixos' mkConfiguration shell-quotes ${pkgs.nix}/bin/nix-env and
+  # ${pkgs.nix}/bin/nix-store into the activation script it generates, so
+  # without it those references point at nixpkgs' own nix (2.18.8 here):
+  #
+  #   * a second package manager ends up in the image closure, and
+  #   * that nix has to be *built* on a cache miss, and it is a cache miss
+  #     precisely because the busybox overlay above changes one of its check
+  #     inputs.  Its checkPhase then fails on a machine with no sandbox
+  #     (nix-2.18.8's tests/functional/build-remote-input-addressed.sh.test
+  #     dies with "executing '<...>-busybox': No such file or directory"),
+  #     which takes `nix build .#rootfs` down with it.
+  #
+  # Pointing `nix` at Lix removes nix-2.18.8 from the graph altogether, and
+  # leaves one package manager in the image instead of two.
+  pkgs = import nixpkgs-src {
+    inherit system;
+    overlays = sixosOverlays ++ [ (final: prev: { nix = lix; }) ];
+  };
 
   # ---------------- kernel --------------------------------------------
 
