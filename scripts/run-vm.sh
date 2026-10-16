@@ -219,7 +219,10 @@ if [ "${AUTO:-0}" = "1" ]; then
     # remount is the only thing in this system that writes to the read-only
     # system disk's mount, so comparing the two syncs says whether the I/O error
     # belongs to the state disk or to that.
-    echo "echo ---- persist2 ----; echo late > /var/persist-late; sync; cat /var/persist-late; ls -l /var/persist-late /var/persist-early"
+    # The late half of the round-trip deliberately does *not* sync anything: it
+    # waits for the state-sync service's next tick, so the host-side debugfs read
+    # proves the service (rather than this shell) committed the state disk.
+    echo "echo ---- persist2 ----; echo late > /var/persist-late; sleep 35; cat /var/persist-late; ls -l /var/persist-late /var/persist-early; tail -3 /var/log/state-sync/current"
     sleep 3
     echo "echo DICTYONOS-DONE"
     sleep 2

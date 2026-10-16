@@ -132,6 +132,11 @@ binds `/var/nix-var` over `/nix/var`, so the Lix database, profiles and the
 daemon socket have somewhere to live. Nothing outside `.dictyonos-vm/` is
 touched.
 
+Asterinas never writes dirty pages back on its own (gotcha 11), so a small
+`state-sync` service commits `/var` with `sync -f` every 30 seconds. That is
+what makes the disk reusable; without it its contents would evaporate when the
+VM dies.
+
 ### Without flakes
 
 `default.nix` and `rootfs.nix` take every source as an explicit argument, so
@@ -295,6 +300,14 @@ closure into the image instead of a 20 MB one.
     prints `execlineb: fatal: too few arguments: expecting at least 4 but got 3`
     on the console. It is a symptom, not a cause: fix the service that keeps
     dying and the noise stops.
+11. **Asterinas does no background writeback, and `sync(2)` is unusable here.**
+    Dirty pages leave the guest only when something calls `syncfs()` on the
+    filesystem that owns them. The system-wide `sync` logs
+    `block: failed to do Write on the device with error status: IoError`
+    against the read-only system disk and does not reliably reach the state
+    disk; the `sync` *mount option* is dropped on the floor, because Asterinas'
+    `PerMountFlags` has no `SYNCHRONOUS` bit. `sync -f /var` (syncfs on the
+    state disk) works and returns 0, which is what `state-sync` uses.
 
 ## Verifying
 
@@ -302,13 +315,16 @@ closure into the image instead of a 20 MB one.
 AUTO=1 nix run
 ``````````
 
-boots the machine, runs `uname -a`, `cat /proc/version`, `readlink
-/proc/1/exe`, `ps aux`, `ls /run/s6-rc /run/service`, `mount`, `ip -o addr`,
-`netstat -ltn`, `nix --version` and `nix eval --expr '1 + 1'` on the serial
-console, checks a real ssh handshake from the host, and writes the transcript
-to `./serial.log`. If activation did not complete it runs it again with its
-output captured, so a silent abort still leaves evidence. A captured run is in
-[ACCEPTANCE.md](ACCEPTANCE.md).
+boots the machine and, on the serial console, runs `uname -a`,
+`cat /proc/version`, `readlink /proc/1/exe`, the full `ps aux`, checks that
+sixos' activation reached the end, reports `s6-svstat` for every longrun and
+tails their logs under `/var/log`, shows both disks and the network
+configuration, runs `nix --version` and `nix eval --expr '1 + 1'`, and does a
+write/`sync -f`/read-back round-trip on the state disk. In parallel it checks a
+real ssh handshake from the host and runs a command through it. Everything is
+written to `./serial.log`. A captured run is in [ACCEPTANCE.md](ACCEPTANCE.md),
+and the host-side half of the state-disk check is a `debugfs` read of
+`.dictyonos-vm/state.ext2`.
 
 ## Known limitations
 
@@ -325,11 +341,12 @@ output captured, so a silent abort still leaves evidence. A captured run is in
   glibc handles `ENOSYS` gracefully.
 * **No INET wildcard bind** (gotcha 8): a service that wants "all interfaces"
   has to enumerate the addresses it actually has.
-* **Writes to the state disk are only durable after a `sync`.** Asterinas
-  caches block writes, and its shutdown path aborts its final flush with an I/O
-  error against the read-only system disk, so a session that is killed without
-  syncing loses whatever had not been written out yet. The acceptance writes,
-  `sync`s and reads back `/var/persist-test` for exactly this reason.
+* **State-disk durability runs on a 30-second timer.** Asterinas does no
+  background writeback (gotcha 11), so `/var` is committed by the `state-sync`
+  service rather than by the kernel, and anything written in the last half
+  minute before the VM dies is lost. The acceptance proves the mechanism both
+  ways: the guest writes, `sync -f`s and reads back `/var/persist-early`, and
+  the host then finds that file inside `state.ext2`.
 
 ## License & Upstream Credits
 

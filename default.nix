@@ -159,6 +159,7 @@ let
     exec 2>&1
     while :; do
       ${pkgs.busybox}/bin/sleep 30
+      echo "state-sync: committing /var"
       ${pkgs.busybox}/bin/sync -f /var || echo "state-sync: syncfs /var failed"
     done
   '';
