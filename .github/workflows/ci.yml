@@ -42,8 +42,11 @@ jobs:
           sudo udevadm trigger --name-match=kvm
           ls -l /dev/kvm
 
+      # --no-build only evaluates the flake, which is instant; building it
+      # would drag in the asterinas devShell, and the outputs the machine
+      # actually needs are built explicitly in the next step anyway.
       - name: Evaluate every flake output
-        run: nix flake check --all-systems
+        run: nix flake check --all-systems --no-build
 
       - name: Build the kernel, the initramfs and the rootfs
         run: nix build .#kernel .#initramfs .#rootfs

@@ -372,4 +372,6 @@ host key:      byte-identical to boot 1
 * `poweroff -f` reports Failed to power off the system and halts the machine:
   Asterinas implements no ACPI power-off. The launcher waits for
   `Halting the machine` and stops QEMU itself, because QEMU does not exit when the
-  guest halts.
+  guest halts. The two writeback ERROR lines that follow it are the same
+  read-only-disk limitation: the halt asks the system disk for one last write,
+  and the disk refuses it.
