@@ -146,6 +146,23 @@ let
   '';
 
 
+  # Asterinas has no background writeback: dirty pages leave the guest only when
+  # something calls syncfs() on the filesystem that owns them.  The system-wide
+  # sync(2) is not usable for this -- it logs
+  #   block: failed to do Write on the device with error status: IoError
+  # against the read-only system disk and does not reliably get around to the
+  # state disk -- while syncfs() on /var works and returns 0.  Without this
+  # timer everything written under /var would evaporate when the VM dies, i.e.
+  # the state disk would not actually be reusable.
+  stateSyncRun = pkgs.writeScript "dictyonos-state-sync" ''
+    #!${pkgs.busybox}/bin/sh
+    exec 2>&1
+    while :; do
+      ${pkgs.busybox}/bin/sleep 30
+      ${pkgs.busybox}/bin/sync -f /var || echo "state-sync: syncfs /var failed"
+    done
+  '';
+
   # Minimal SSH: dropbear, public-key only. The launcher generates a throwaway
   # keypair on the host and passes the public half on the kernel command line as
   #   dictyonos.ssh_key_type=ssh-ed25519 dictyonos.ssh_key=<base64 blob>
@@ -393,6 +410,12 @@ let
         # and just fails with TIOCSCTTY.
         lix-daemon = hostFinal.six.mkFunnel {
           run = lixDaemonRun;
+          passthru.after = [ hostFinal.targets.mounts."" ];
+        };
+
+        # Periodically commit the state disk (see stateSyncRun).
+        state-sync = hostFinal.six.mkFunnel {
+          run = stateSyncRun;
           passthru.after = [ hostFinal.targets.mounts."" ];
         };
 
