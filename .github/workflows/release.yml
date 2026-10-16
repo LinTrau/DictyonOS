@@ -1,0 +1,55 @@
+# A tag is a claim that this exact tree boots.  Everything a release needs is
+# built here and attached here, so publishing one is not a manual step: the
+# token that creates the release is the one GitHub hands every workflow run,
+# and the release notes are the tag's own annotation, which makes the tag the
+# single thing to write.  Pushing a tag is the whole procedure:
+#
+#     git tag -a v0.2.0    # the annotation becomes the release notes
+#     git push origin v0.2.0
+#
+# This job does not re-run the acceptance test.  A tag is cut from a commit
+# that main CI already accepted, and the acceptance takes twice as long as the
+# build.  The build is still a real build, so a release can never be cut from
+# a tree that does not evaluate and compile.
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The annotation of the tag being released is the release body, so
+          # the tag object has to be here.
+          fetch-depth: 0
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Build the machine
+        run: nix build .#kernel .#initramfs .#rootfs .#system
+
+      # zstd comes out of nixpkgs, so the archive does not depend on what the
+      # runner image happens to ship.
+      - name: Assemble the prebuilt bundle
+        run: nix shell nixpkgs#zstd --command ./scripts/make-release-bundle.sh "dictyonos-$GITHUB_REF_NAME-x86_64"
+
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --verify-tag \
+            --title "$(git for-each-ref --format='%(contents:subject)' "refs/tags/$GITHUB_REF_NAME")" \
+            --notes-from-tag \
+            "dist/dictyonos-$GITHUB_REF_NAME-x86_64-qemu.tar.zst" \
+            dist/asterinas-osdk-bin.elf \
+            dist/SHA256SUMS
