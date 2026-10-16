@@ -20,9 +20,9 @@ expressions, one early-boot shell script, one launcher script.
 
 ## Why this stack
 
-**This is a proof of concept, not a distribution.** It asks one narrow question
--- can three independently evolving projects be woven into a system that boots,
-with none of them forked? -- and answers "so far, yes, in QEMU". There is no
+**This is a proof of concept, not a distribution.** It asks one narrow question:
+can three independently evolving projects be woven into a system that boots, with
+none of them forked? The answer so far is "yes, in QEMU". There is no
 installer, no upgrade path, no security response process and no claim of
 production readiness. A few pieces here exist only because an upstream has not
 grown the feature yet; each is commented where it lives, and *Upstream gotchas*
@@ -46,14 +46,14 @@ runtime.
 
 "Memory-safe distribution" would be an overclaim: busybox, `s6`, dropbear and
 Lix are not memory-safe, and they run as root. The narrower claim is that the
-*large* privileged component -- the kernel -- is the memory-safe one. For scale:
+*large* privileged component, the kernel, is the memory-safe one. For scale:
 the kernel payload is 19.9 MB and its Nix closure is exactly itself, while the
 userspace closure is 1011.8 MB packed into a 639 MiB image.
 
 ### One mental model, from packages to services
 
-NixOS has a seam in it. Packages are ordinary functions -- `callPackage`,
-overlays, `overrideAttrs` -- but services live on the other side of a module
+NixOS has a seam in it. Packages are ordinary functions like `callPackage`,
+overlays and `overrideAttrs`, but services live on the other side of a module
 system with its own evaluation model, feeding systemd units with their own state
 machine. Two mental models, one system, and a global option tree whose cost is
 paid on every rebuild.
@@ -79,8 +79,8 @@ descriptors. Its supervisor tree is orthogonal POSIX primitives all the way
 down. The fit is good enough that the service set here comes up within about a
 second of guest time on a kernel with no `rseq`, no netlink, no ACPI power-off
 and no working `kexec`. Where Asterinas does have gaps they are shallow and
-enumerable -- it cannot bind an IPv4 wildcard address, which is gotcha 8 -- and
-that is a far better failure mode than a service manager that hangs halfway
+enumerable (it cannot bind an IPv4 wildcard address, which is gotcha 8), and that
+is a far better failure mode than a service manager that hangs halfway
 through boot.
 
 ### A plausible substrate for microVMs and confidential computing
@@ -131,8 +131,8 @@ s6-rc services: set-hostname, mounts.{proc,sys,dev.pts,dev.shm,tmp,""}, net-dhcp
 
 sixos normally boots through `ownerboot`, which hands the new system to the
 kernel with `kexec`. Asterinas does not implement `kexec`, so that path is
-unusable here. Instead the sixos *configuration closure* -- the same derivation
-`mkConfiguration` produces and normally feeds to kexec -- is shipped as the
+unusable here. Instead the sixos *configuration closure*, the same derivation
+`mkConfiguration` produces and normally feeds to kexec, is shipped as the
 root filesystem and booted with QEMU's direct kernel boot. sixos itself is
 untouched: its own `boot/kernel-params` file already supplies the
 `configuration=` parameter that `rc.init` knows how to consume.
@@ -310,7 +310,7 @@ closure into the image instead of a 20 MB one.
   a read-only QEMU drive cannot do. `rootfs.nix` pre-creates the same `/etc`,
   `/bin/sh` and `/usr/bin/env` links that activation would create, using the
   exact targets its `readlink` comparisons test for, so the whole linkify pass
-  is skipped -- see gotcha 1 for why that matters so much.
+  is skipped; gotcha 1 explains why that matters so much.
 * **There is no getty target.** `s6-linux-init-maker -G` (derived by sixos from
   `boot.kernel.console`) already supervises a getty on `ttyS0`. A second one
   cannot take the controlling terminal and fails with
@@ -318,8 +318,8 @@ closure into the image instead of a 20 MB one.
 * **`net-dhcp` is best-effort.** It brings every non-`lo` interface up and
   runs `udhcpc` under a timeout, but every step is guarded and it always exits
   0, so a missing or unsupported NIC cannot stall the boot. It also seeds
-  `/etc/resolv.conf` -- a symlink into the tmpfs-backed `/run`, because
-  `/etc` itself is read-only -- with the QEMU user-mode resolver.
+  `/etc/resolv.conf` (a symlink into the tmpfs-backed `/run`, because `/etc`
+  itself is read-only) with the QEMU user-mode resolver.
 * **`ssh` is public-key only.** The launcher generates a throwaway keypair,
   passes the public half on the kernel command line, and the service writes it
   to `/root/.ssh/authorized_keys` on the state disk. dropbear runs with
@@ -336,7 +336,7 @@ closure into the image instead of a 20 MB one.
 
 1. **sixos' `activate` can abort silently, and then nothing works.** It runs
    under `set -e`, and its `linkify` pass writes to `$RWMOUNT/<path>`, where
-   `$RWMOUNT` is set *only* by the first-boot branch -- so on a read-only root
+   `$RWMOUNT` is set *only* by the first-boot branch, so on a read-only root
    any failed `ln -sfT` kills activation before `s6-rc-init` ever runs. The
    machine still boots into the `s6-linux-init` *early getty*, which looks like
    a working serial console with no services. Every link activation touches has
@@ -348,8 +348,8 @@ closure into the image instead of a 20 MB one.
    reports `ST_RDONLY`, and the kernel answers `EINVAL` unless the target is
    the root of a mount. The overlay solves this on the way up; the read-only
    fallback keeps the old self-bind-mount for it. `/nix/store/.links` also has
-   to exist, because `LocalStore`'s constructor creates it unconditionally --
-   even for a pure `nix eval`.
+   to exist, because `LocalStore`'s constructor creates it unconditionally, even
+   for a pure `nix eval`.
 3. **sixos `apply-tags` erases the host when no tag is active.**
    `lib.composeManyExtensions []` evaluates to `(_: _: {})`, so with an empty
    tag set the host collapses to just `tags`/`canonical`/`name`. This
@@ -373,16 +373,16 @@ closure into the image instead of a 20 MB one.
 8. **Asterinas cannot bind an IPv4 wildcard address.** `bind()` resolves its
    argument in a local routing table
    (`kernel/core/src/net/route/mod.rs:lookup_local_iface`) and answers
-   `EADDRNOTAVAIL` for anything that is not a local address -- `0.0.0.0` and
-   `::` included, so the usual `listen(0.0.0.0:22)` cannot work at all. A plain
+   `EADDRNOTAVAIL` for anything that is not a local address, `0.0.0.0` and `::`
+   included, so the usual `listen(0.0.0.0:22)` cannot work at all. A plain
    dropbear `-p 22` is worse: it takes the IPv6 wildcard from getaddrinfo, fails
    on `IPV6_V6ONLY` and `bind(::)`, and exits with "No listening ports
    available" without ever trying IPv4. The `ssh` service therefore waits for
    the NIC to have a routable address and binds that address.
 9. **dropbear validates the login shell through `/etc/shells`.** With the file
    absent glibc's `getusershell(3)` falls back to "/bin/sh,/bin/csh", and
-   root's shell in a sixos-generated `passwd` is a store path -- so every login
-   is refused with "User 'root' has invalid shell, rejected" even though the key
+   root's shell in a sixos-generated `passwd` is a store path, so every login is
+   refused with "User 'root' has invalid shell, rejected" even though the key
    was accepted. `rootfs.nix` writes `/etc/shells` from `passwd` itself.
 10. **sixos' generated `finish.user` scripts carry `-Ws4`.** `execlineb -W -s 4`
     demands four positional parameters, so every restart of a dying service
@@ -408,14 +408,14 @@ closure into the image instead of a 20 MB one.
     `seccomp(2)` a guest build dies with `unable to load seccomp BPF program:
     Function not implemented`. The way out is the library's own meson switch,
     `-Dseccomp-sandboxing=disabled`, which means building Lix from source
-    rather than substituting it -- done in `default.nix`.
+    rather than substituting it. `default.nix` does exactly that.
 14. **Asterinas' ext2 writes xattrs that `e2fsck` rejects.** A `debugfs` check
     of the state disk after a guest build reports `Extended attribute in inode
     15 has a hash (0) which is invalid`, `i_blocks is 8, should be 16` and
     `Block bitmap differences`, all of them in the directory overlayfs uses as
     its upper layer. Nothing in the guest notices, files read back correctly, and
-    the disk is disposable -- but do not run a *repairing* `e2fsck` on one you
-    care about.
+    the disk is disposable. Do not run a *repairing* `e2fsck` on one you care
+    about, though.
 
 ## Verifying
 
@@ -447,9 +447,9 @@ deliberately sleeps 35 seconds to let `state-sync` tick, and a host that runs
 ahead sees its own commands echoed back by the tty before the output they belong
 to, which interleaves the transcript and truncates it for whoever reads it later.
 
-Three transcripts come out of it -- `./serial.log` (boot 1),
-`./serial-boot2.log` (boot 2) and `./serial.host.log` (ssh, `e2fsck`,
-`debugfs`) -- and a captured run is in [ACCEPTANCE.md](ACCEPTANCE.md).
+Three transcripts come out of it: `./serial.log` (boot 1), `./serial-boot2.log`
+(boot 2) and `./serial.host.log` (ssh, `e2fsck`, `debugfs`). A captured run is
+in [ACCEPTANCE.md](ACCEPTANCE.md).
 [.github/workflows/ci.yml](.github/workflows/ci.yml) runs the same acceptance on
 every push and pull request, and uploads those transcripts either way.
 
@@ -461,9 +461,9 @@ every push and pull request, and uploads those transcripts either way.
 * The guest can build, but it has no toolchain of its own: a build that needs a
   compiler has to pull one from a binary cache first, and both the upper layer
   of the store and `/var` live on the same 512 MiB state disk.
-* `uname -a` reports `Linux 5.13.0` on purpose -- Asterinas advertises a Linux
-  ABI. `/proc/version` is the honest tell: it names the Rust compiler, not a C
-  one.
+* `uname -a` reports `Linux 5.13.0` on purpose: Asterinas advertises a Linux
+  ABI. `/proc/version` is the honest tell, and it names the Rust compiler, not a
+  C one.
 * Syscall 334 (`rseq`) is unimplemented and logged once per process start;
   glibc handles `ENOSYS` gracefully.
 * **No INET wildcard bind** (gotcha 8): a service that wants "all interfaces"
@@ -471,7 +471,7 @@ every push and pull request, and uploads those transcripts either way.
 * **State-disk durability runs on a 30-second timer.** Asterinas does no
   background writeback (gotcha 11), so `/var` is committed by the `state-sync`
   service rather than by the kernel, and anything written in the last half minute
-  before the VM dies is lost -- including a store path you just built. The
+  before the VM dies is lost, including a store path you just built. The
   acceptance proves the mechanism both ways: the guest writes
   `/var/persist-early`, `sync -f`s it and reads it back; `/var/persist-late`
   is deliberately never synced by the guest and lands on the disk because the
@@ -481,9 +481,9 @@ every push and pull request, and uploads those transcripts either way.
 
 ## License & upstream credits
 
-The glue layer in this repository -- `flake.nix`, `default.nix`, `kernel.nix`,
-`vendor.nix`, `initramfs.nix`, `rootfs.nix`, `stage1-init.sh` and `scripts/` --
-is licensed under the **Mozilla Public License 2.0** (`LICENSE`), matching
+The glue layer in this repository (`flake.nix`, `default.nix`, `kernel.nix`,
+`vendor.nix`, `initramfs.nix`, `rootfs.nix`, `stage1-init.sh` and `scripts/`) is
+licensed under the **Mozilla Public License 2.0** (`LICENSE`), matching
 Asterinas.
 
 It consumes, but does not modify or redistribute, the following upstream
