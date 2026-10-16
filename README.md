@@ -176,7 +176,7 @@ scripts/vendor-git-deps.py     rewrites asterinas git dependencies into path dep
 ## Quick start
 
 ``````````sh
-git clone https://github.com/LinTrau/dictyonos
+git clone https://github.com/LinTrau/DictyonOS
 cd dictyonos
 nix run                       # builds kernel + initramfs + rootfs, then boots QEMU
 ``````````

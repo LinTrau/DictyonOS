@@ -134,7 +134,7 @@ scripts/vendor-git-deps.py     把 asterinas 的 git 依赖改写成 path 依赖
 ## 快速开始
 
 ``````````sh
-git clone https://github.com/LinTrau/dictyonos
+git clone https://github.com/LinTrau/DictyonOS
 cd dictyonos
 nix run                       # 构建内核 + initramfs + rootfs,然后启动 QEMU
 ``````````
