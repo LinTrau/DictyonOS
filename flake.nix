@@ -4,7 +4,7 @@
   inputs = {
     # The Asterinas framekernel, pinned to the revision this glue layer was
     # developed and verified against.
-    asterinas.url = "github:asterinas/asterinas/01acaa7eeed755a32fc658e7d732b080061b4872";
+    asterinas.url = "github:asterinas/asterinas/26cb04660e20053b7fb7a91cfd7ffd21b372839f";
 
     # sixos and infuse.nix are plain source trees: neither ships a flake.nix.
     sixos = {

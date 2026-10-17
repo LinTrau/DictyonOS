@@ -61,8 +61,9 @@ systemd 的问题不只是大，它和 Linux 特有的行为缠在一起：cgrou
 ABI 还在生长中的内核来说是沉重的负担，而这恰恰是 Asterinas 本来就得背的负担。
 
 `s6` 要的东西很少：`fork`、`exec`、信号、管道、文件描述符。它的监督树自上而下都由正交的
-POSIX 原语搭成。契合程度还不错：在一个没有 `rseq`、没有 netlink、没有 ACPI 关机、`kexec`
-也用不了的内核上，这里的服务集在虚拟机时间里大约一秒内就全部起来了。Asterinas 确实有
+POSIX 原语搭成。契合程度还不错：在一个没有 `rseq`、没有 netlink、没有 ACPI（关机是靠写
+QEMU 的 `isa-debug-exit` 端口实现的）、`kexec` 也用不了的内核上，这里的服务集在虚拟机
+时间里大约一秒内就全部起来了。Asterinas 确实有
 缺口，但缺口很浅、也能数得清，比如它绑不了 IPv4 通配地址（坑 8），这比一个走到启动中途
 就卡住的服务管理器要好得多。
 
@@ -360,9 +361,12 @@ AUTO=1 nix run
 
 第二次启动在*同一块*状态盘上开一台新机器，必须还能找到 `/var/persist-early`、
 `/var/persist-late` 和两个 store path，内容不变，而且必须给出同一个 dropbear 主机密钥。
-宿主这边也会给出自己的证据：在镜像上跑 `e2fsck -fn`，不挂载直接用 `debugfs` 读（虚拟机
-是停机而不是正常关机，所以镜像退出时从未被同步），以及 `ssh-keyscan` 看到的客户端侧主机
-密钥，并跨两次启动比较。只有这些都成立，运行才会打印 `REBOOT-PERSISTENCE-OK`。
+宿主这边也会给出自己的证据：在镜像上跑 `e2fsck -fn`，不挂载直接用 `debugfs` 读
+（Asterinas 关机前不卸载任何文件系统，所以镜像退出时从未被同步），以及 `ssh-keyscan` 看到的
+客户端侧主机密钥，并跨两次启动比较。只有这些都成立，运行才会打印 `REBOOT-PERSISTENCE-OK`。
+
+每次启动都以 `poweroff -f` 收尾，于是机器是自己消失的：内核往 `isa-debug-exit` 端口写
+0x10，QEMU 以状态 33 退出，启动脚本把它当作关机成功，而不是一直等到 `TIMEOUT`。
 
 命令是一条一条敲进虚拟机 getty 的，每一步都以宿主在等的哨兵字符串收尾。固定的 sleep 不够
 用：其中有一步故意睡 35 秒好让 `state-sync` 走一拍，而宿主跑得太快时会先看到 tty 回显的
@@ -375,8 +379,6 @@ push 和 pull request 上跑同一套验收，并且无论成败都上传这些�
 
 ## 已知限制
 
-* `poweroff -f` 会报 `Failed to power off the system`，QEMU 继续跑；Asterinas 没实现 ACPI
-  关机。结束运行靠启动脚本的 `TIMEOUT`。
 * 虚拟机确实能构建，但它自己没有工具链：需要编译器的构建得先从二进制缓存拉一个，而且
   store 的上层和 `/var` 挤在同一块 512 MiB 状态盘上。
 * `uname -a` 报的是 `Linux 5.13.0`，这是故意的，Asterinas 对外声称 Linux ABI。想看真话

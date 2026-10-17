@@ -37,9 +37,10 @@
 #   MEM, SMP, CPU, QEMU_BIN, ENABLE_KVM, NET, AUTO, AUTO_WAIT, BOOT2, TIMEOUT,
 #   STEP_WAIT, HALT_WAIT, CMDLINE
 #
-# HALT_WAIT has to cover the whole scripted sequence: the guest only halts after
-# the acceptance steps have been typed and answered, and the host stops the
-# machine the moment it sees the halt.
+# HALT_WAIT has to cover the whole scripted sequence: the machine only goes away
+# after the acceptance steps have been typed and answered, and the host notices
+# the moment it does -- either because QEMU exited by itself after the guest's
+# poweroff, or because the guest halted and this script stopped it.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -146,6 +147,12 @@ QEMU_ARGS=(
   -display none
   -monitor none
   -serial stdio
+  # Asterinas turns a poweroff into a write to QEMU's isa-debug-exit port, and it
+  # assumes exactly this device (ostd/src/arch/x86/power.rs: iobase 0xf4, iosize
+  # 4). Without it the write goes nowhere, the kernel falls back to halting the
+  # CPUs, and QEMU sits there until TIMEOUT. With it, `poweroff -f` in the guest
+  # makes QEMU exit on its own with status (0x10 << 1) | 1 = 33.
+  -device isa-debug-exit,iobase=0xf4,iosize=0x04
   $ACCEL
   -kernel "$KERNEL_ELF"
   -initrd "$INITRAMFS"
@@ -169,6 +176,7 @@ echo "    net    : $NET"
 if [ "$NET" != "0" ]; then
   echo "    ssh    : ssh -i $SSH_KEY -p $SSH_PORT root@127.0.0.1"
 fi
+echo "    poweroff: isa-debug-exit on port 0xf4; the guest stops the machine itself"
 echo "    cmdline: $CMDLINE"
 echo
 
@@ -206,14 +214,21 @@ verify_ssh() {
 
 # ------------------------------------------------------- host-side checks
 
-# QEMU does not exit when the guest halts: Asterinas cannot power the machine
-# off ("Failed to power off the system"), so it halts instead and QEMU sits there
-# until `timeout` fires, printing a misleading "terminating on signal 15 ...
-# (timeout)" line into the transcript. Wait for the halt and stop the machine.
+# Asterinas powers the machine off by writing 0x10 to QEMU's isa-debug-exit port,
+# so with the -device above QEMU exits by itself and the guest's `poweroff -f` is
+# a real poweroff: no halt-to-nowhere, no misleading "terminating on signal 15
+# (timeout)" line in the transcript. Two endings are still possible, and this
+# function has to notice whichever comes first:
+#
+#   the guest exits QEMU        there is no "Halting the machine" line -- the
+#                               kernel writes the port and the process is gone
+#   the guest halts instead     no device, or a kernel without it; the CPUs spin
+#                               and only "Halting the machine" announces it
 wait_for_halt() {
   local deadline=$((SECONDS + ${HALT_WAIT:-240}))
   while [ "$SECONDS" -lt "$deadline" ]; do
     grep -q "Halting the machine" "$1" 2>/dev/null && return 0
+    kill -0 "$VM_PID" 2>/dev/null || return 0
     sleep 1
   done
   return 1
@@ -225,7 +240,8 @@ wait_for_halt() {
 # guest.
 stop_vm() {
   kill -TERM "$VM_PID" 2>/dev/null || true
-  wait "$VM_PID" 2>/dev/null || true
+  VM_STATUS=0
+  wait "$VM_PID" 2>/dev/null || VM_STATUS=$?
   sleep 1 # let tee finish writing the transcript
   if [ "$NET" = "0" ]; then
     return 0
@@ -241,8 +257,39 @@ stop_vm() {
   return 1
 }
 
+# Turn QEMU's exit status into a sentence the transcript can be read for, and say
+# whether it is the ending this script wants. Asterinas exits the machine with
+# 0x10 for success and 0x20 for failure, and QEMU doubles the value and sets the
+# low bit: 33 means the guest powered the machine off, 65 means it gave up.
+# 124 is `timeout` firing, i.e. the machine never stopped at all.
+report_stop() {
+  local label="$1"
+  case "$VM_STATUS" in
+  33)
+    echo "==> $label: the guest powered the machine off; QEMU exited by itself with 33 (isa-debug-exit 0x10, no timeout)" \
+      | tee -a "$HOST_LOG"
+    return 0 ;;
+  65)
+    echo "==> $label: the guest asked QEMU to exit with a failure status (65 = 0x20)" >&2
+    return 1 ;;
+  124)
+    echo "==> $label: TIMEOUT expired while the machine was still running" >&2
+    return 1 ;;
+  0)
+    echo "==> $label: QEMU exited on its own without a poweroff request" >&2
+    return 1 ;;
+  *)
+    if [ "$VM_STATUS" -ge 128 ]; then
+      echo "==> $label: the guest halted; this script stopped the machine (signal $((VM_STATUS - 128)))"
+      return 0
+    fi
+    echo "==> $label: QEMU exited with status $VM_STATUS" >&2
+    return 1 ;;
+  esac
+}
+
 # Everything the guest wrote, read back by the host. debugfs opens the image
-# without mounting it (the guest halts rather than shutting down cleanly) and
+# without mounting it, so the host never has to trust a clean shutdown -- and
 # e2fsck -fn reports the metadata state of the image.
 dump_state() {
   local label="$1" f base
@@ -412,10 +459,10 @@ auto_boot2() {
 }
 
 # Run one boot: feed it the commands, verify ssh against it while it comes up,
-# then stop the machine once it has halted.
+# then wait for the machine to go away and report how it went away.
 VM_PID=""
 run_boot() {
-  local feeder="$1" log="$2" keys="$3" rc=0
+  local feeder="$1" log="$2" keys="$3" label="$4" rc=0
   CURRENT_LOG="$log"
   "$feeder" | run_qemu "$log" &
   VM_PID=$!
@@ -423,12 +470,13 @@ run_boot() {
     verify_ssh "$keys" 2>&1 | tee -a "$HOST_LOG" || rc=$?
   fi
   if wait_for_halt "$log"; then
-    echo "==> the guest halted; stopping the machine" | tee -a "$HOST_LOG"
     stop_vm
   else
-    echo "==> the guest never halted; waiting for TIMEOUT" >&2
-    wait "$VM_PID" || true
+    echo "==> $label: the machine never stopped; waiting for TIMEOUT" >&2
+    VM_STATUS=0
+    wait "$VM_PID" || VM_STATUS=$?
   fi
+  report_stop "$label" || rc=$?
   return "$rc"
 }
 
@@ -437,16 +485,17 @@ if [ "${AUTO:-0}" = "1" ]; then
   FAIL=0
   CURRENT_LOG=""
   VM_PID=""
+  VM_STATUS=""
 
-  if run_boot auto_boot1 "$LOG" "$WORKDIR/hostkey.scan.boot1"; then :; else
-    echo "==> boot 1: ssh verification failed" >&2
+  if run_boot auto_boot1 "$LOG" "$WORKDIR/hostkey.scan.boot1" "boot 1"; then :; else
+    echo "==> boot 1 failed: see the lines above" >&2
     FAIL=1
   fi
   dump_state boot1
 
   if [ "${BOOT2:-1}" = "1" ]; then
-    if run_boot auto_boot2 "$LOG2" "$WORKDIR/hostkey.scan.boot2"; then :; else
-      echo "==> boot 2: ssh verification failed" >&2
+    if run_boot auto_boot2 "$LOG2" "$WORKDIR/hostkey.scan.boot2" "boot 2"; then :; else
+      echo "==> boot 2 failed: see the lines above" >&2
       FAIL=1
     fi
     dump_state boot2
@@ -471,7 +520,16 @@ if [ "${AUTO:-0}" = "1" ]; then
   fi
   echo "==> acceptance passed"
 else
-  run_qemu "$LOG"
+  # Interactive: QEMU now exits on its own when the guest powers off, so translate
+  # that status instead of letting `nix run` return 33 for a successful shutdown.
+  # The subshell keeps the tee redirect from leaking into the lines printed below.
+  rc=0
+  ( run_qemu "$LOG" ) || rc=$?
+  case "$rc" in
+  33) echo; echo "==> the guest powered the machine off; QEMU exited by itself" ;;
+  65) echo "==> the guest asked QEMU to exit with a failure status" >&2; exit 65 ;;
+  124) echo "==> TIMEOUT expired while the machine was still running" >&2; exit 124 ;;
+  esac
 fi
 
 echo

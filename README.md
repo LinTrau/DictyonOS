@@ -77,8 +77,9 @@ precisely the burden Asterinas would otherwise have to carry.
 `s6` asks for very little: `fork`, `exec`, signals, pipes, file
 descriptors. Its supervisor tree is orthogonal POSIX primitives all the way
 down. The fit is good enough that the service set here comes up within about a
-second of guest time on a kernel with no `rseq`, no netlink, no ACPI power-off
-and no working `kexec`. Where Asterinas does have gaps they are shallow and
+second of guest time on a kernel with no `rseq`, no netlink, no ACPI (a poweroff
+is a write to QEMU's `isa-debug-exit` port) and no working `kexec`. Where
+Asterinas does have gaps they are shallow and
 enumerable (it cannot bind an IPv4 wildcard address, which is gotcha 8), and that
 is a far better failure mode than a service manager that hangs halfway
 through boot.
@@ -436,10 +437,14 @@ The second boot starts a fresh machine on the *same* state disk and has to find
 `/var/persist-early`, `/var/persist-late` and both store paths still there with
 their contents, and has to present the same dropbear host key. The host
 contributes evidence of its own: `e2fsck -fn` on the image, `debugfs` reads
-taken without mounting it (the guest halts rather than shutting down, so the
-image is never synced on the way out), and the client-visible host key from
+taken without mounting it (Asterinas powers off without unmounting anything, so
+the image is never synced on the way out), and the client-visible host key from
 `ssh-keyscan`, compared across the two boots. The run prints
 `REBOOT-PERSISTENCE-OK` only when all of that holds.
+
+Each boot ends with `poweroff -f`, so the machine goes away by itself: the
+kernel writes 0x10 to the `isa-debug-exit` port, QEMU exits with status 33, and
+the launcher reports that as the poweroff rather than waiting for `TIMEOUT`.
 
 The commands are typed into the guest's getty one step at a time, and every step
 ends with a sentinel the host waits for. Fixed sleeps are not enough: one step
@@ -455,9 +460,6 @@ every push and pull request, and uploads those transcripts either way.
 
 ## Known limitations
 
-* `poweroff -f` reports `Failed to power off the system` and leaves QEMU
-  running; Asterinas does not implement ACPI power-off. The launcher's
-  `TIMEOUT` ends the run.
 * The guest can build, but it has no toolchain of its own: a build that needs a
   compiler has to pull one from a binary cache first, and both the upper layer
   of the store and `/var` live on the same 512 MiB state disk.
