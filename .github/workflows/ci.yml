@@ -78,16 +78,27 @@ jobs:
         run: |
           # The reason has to be readable by someone without write access to the
           # repository, and a step's stdout is not -- annotations are, so a failed
-          # push repeats its last lines as a warning.
+          # push repeats the first lines of what cachix said (its message is at the
+          # top; the stack trace at the bottom was all the first attempt showed).
           push() {
-            local out last
+            local out line
             if out=$("$@" 2>&1); then
               return 0
             fi
-            last=$(printf '%s\n' "$out" | tail -n 3 | tr '\n' ' ')
-            echo "::warning title=cachix push failed::$last"
+            printf '%s\n' "$out" | head -n 6 | while IFS= read -r line; do
+              [ -n "$line" ] || continue
+              echo "::warning title=cachix push failed::$line"
+            done
             return 1
           }
+          # Separates "the token cannot see this cache" from "the push mechanism
+          # failed": this is a plain authenticated read of the cache's metadata.
+          # The body carries "permission", which is where a read-only token shows
+          # itself: it says Read, while a token that may push says Write.
+          code=$(curl -sS -o /tmp/cachix-cache.json -w '%{http_code}' \
+                   -H "Authorization: Bearer $CACHIX_AUTH_TOKEN" \
+                   https://cachix.org/api/v1/cache/dictyonos || true)
+          echo "::notice title=cachix token check::GET api/v1/cache/dictyonos -> HTTP $code $(head -c 200 /tmp/cachix-cache.json 2>/dev/null)"
           push cachix push dictyonos $(nix build .#kernel --no-link --print-out-paths) || {
             echo "::warning::the kernel did not reach the cache, so the rest is skipped; the acceptance below still runs"
             exit 0
