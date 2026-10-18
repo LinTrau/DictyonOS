@@ -31,6 +31,9 @@ install -m 0444 "$initrd/initrd" "$bundle/initramfs.cpio.gz"
 install -m 0444 "$rootfs" "$bundle/rootfs.ext2"
 install -m 0444 "$system/boot/kernel-params" "$bundle/kernel-params"
 install -m 0644 LICENSE README.md README.zh-CN.md ACCEPTANCE.md flake.lock "$bundle/"
+# The READMEs point at assets/logo.png; keep the bundle's copy of them valid.
+install -d "$bundle/assets"
+install -m 0644 assets/logo.png "$bundle/assets/logo.png"
 install -m 0755 scripts/run-vm.sh "$bundle/run-vm.sh"
 
 cat > "$bundle/start.sh" <<'START_SH'

@@ -65,13 +65,35 @@ jobs:
       - name: Build the kernel, the initramfs, the rootfs and the configuration
         run: nix build .#kernel .#initramfs .#rootfs .#system
 
-      # The rootfs closure is about a gigabyte the first time, so this is slow
-      # once and cheap afterwards; it is guarded by the token like the setup step.
+      # The kernel goes first and on its own: it is one self-contained path, so if
+      # the cache or the token is wrong the job says so in seconds instead of
+      # walking a gigabyte-long rootfs closure first. The rootfs closure is about
+      # a gigabyte the first time and cheap afterwards.
+      #
+      # None of this may fail the job: a cache outage is not a reason to stop
+      # testing whether the machine boots, so a failed push is a warning.
       - name: Push the build to the binary cache
         if: env.CACHIX_AUTH_TOKEN != ''
+        continue-on-error: true
         run: |
-          cachix push dictyonos \
-            $(nix build .#kernel .#initramfs .#rootfs .#system --no-link --print-out-paths)
+          # The reason has to be readable by someone without write access to the
+          # repository, and a step's stdout is not -- annotations are, so a failed
+          # push repeats its last lines as a warning.
+          push() {
+            local out last
+            if out=$("$@" 2>&1); then
+              return 0
+            fi
+            last=$(printf '%s\n' "$out" | tail -n 3 | tr '\n' ' ')
+            echo "::warning title=cachix push failed::$last"
+            return 1
+          }
+          push cachix push dictyonos $(nix build .#kernel --no-link --print-out-paths) || {
+            echo "::warning::the kernel did not reach the cache, so the rest is skipped; the acceptance below still runs"
+            exit 0
+          }
+          push cachix push dictyonos $(nix build .#initramfs .#rootfs .#system --no-link --print-out-paths) || true
+          echo "::notice::pushed the build to https://dictyonos.cachix.org"
 
       # Boots twice against the same state disk: the first boot runs the
       # checks, switches to a second generation and writes /var/persist-early
