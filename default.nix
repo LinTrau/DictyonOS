@@ -123,8 +123,10 @@ let
     # require-sigs line in only to read from a local, unsigned store.
     # require-sigs = false
     experimental-features = nix-command flakes
-    substituters = https://cache.nixos.org/
-    trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=
+    # The cache this repository's CI writes (see flake.nix). Substituting from it
+    # is what keeps a guest build from compiling the kernel or Lix again.
+    substituters = https://cache.nixos.org/ https://dictyonos.cachix.org
+    trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= dictyonos.cachix.org-1:IRpGeZZJpVtQ7uPSCYKHbhz012v62JVyFwFH5ZSbSh8=
     # Without this Lix finds no trust store: a substitution from
     # cache.nixos.org fails with "unable to get local issuer certificate".
     ssl-cert-file = ${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt

@@ -117,6 +117,12 @@ fi
 
 CMDLINE="${CMDLINE:-$(cat "$CONFIG/boot/kernel-params")}"
 CMDLINE="$CMDLINE $EXTRA_CMDLINE"
+# ROLLBACK=1 asks the machine to start the generation kept as prevboot instead of
+# the one that is selected now. stage1-init reads the marker off this command
+# line, so it is the same mechanism a person would use by hand.
+if [ "${ROLLBACK:-0}" = "1" ]; then
+  CMDLINE="$CMDLINE dictyonos.rollback=1"
+fi
 
 ACCEL=""
 CPU="${CPU:-Icelake-Server,+x2apic,+vmx}"
@@ -466,6 +472,22 @@ auto_boot2() {
   sleep 5
 }
 
+# The rollback boot: the same state disk the acceptance left behind, with
+# dictyonos.rollback=1 on the kernel command line. Nothing here needs the full
+# check list -- the question is which configuration the initramfs picked, and
+# whether the machine still comes up on it.
+auto_rollback() {
+  sleep "${AUTO_WAIT:-30}"
+  echo ""
+  auto "echo ==== DICTYONOS ACCEPTANCE rollback boot, dictyonos.rollback=1 ===="
+  auto "uname -a"
+  auto "echo ---- generation ----; echo nextboot=\$(readlink /nix/var/nix/profiles/nextboot); echo prevboot=\$(readlink /nix/var/nix/profiles/prevboot); echo current=\$(readlink /run/current-system)"
+  auto "echo DICTYONOS-DONE"
+  sleep 1
+  echo "poweroff -f"
+  sleep 5
+}
+
 # Run one boot: feed it the commands, verify ssh against it while it comes up,
 # then wait for the machine to go away and report how it went away.
 VM_PID=""
@@ -495,11 +517,30 @@ if [ "${AUTO:-0}" = "1" ]; then
   VM_PID=""
   VM_STATUS=""
 
-  if run_boot auto_boot1 "$LOG" "$WORKDIR/hostkey.scan.boot1" "boot 1"; then :; else
-    echo "==> boot 1 failed: see the lines above" >&2
-    FAIL=1
+  if [ "${ROLLBACK:-0}" = "1" ]; then
+    # One boot, and the only question is which configuration it chose. The state
+    # disk is the one the acceptance just left behind, where nextboot names the
+    # newer generation and prevboot the one that was in use before it.
+    BOOT2=0
+    if run_boot auto_rollback "$LOG" "$WORKDIR/hostkey.scan.boot1" "rollback"; then :; else
+      echo "==> rollback boot failed: see the lines above" >&2
+      FAIL=1
+    fi
+    if grep -q "handing off to .* (from prevboot)" "$LOG" \
+       && ! grep -q "handing off to /nix/store/dictyonos-generation-2" "$LOG"; then
+      echo "==> rollback: the initramfs chose prevboot, the generation the last switch kept" \
+        | tee -a "$HOST_LOG"
+    else
+      echo "==> rollback: the initramfs did not choose prevboot" >&2
+      FAIL=1
+    fi
+  else
+    if run_boot auto_boot1 "$LOG" "$WORKDIR/hostkey.scan.boot1" "boot 1"; then :; else
+      echo "==> boot 1 failed: see the lines above" >&2
+      FAIL=1
+    fi
+    dump_state boot1
   fi
-  dump_state boot1
 
   if [ "${BOOT2:-1}" = "1" ]; then
     if run_boot auto_boot2 "$LOG2" "$WORKDIR/hostkey.scan.boot2" "boot 2"; then :; else

@@ -140,8 +140,22 @@ cd dictyonos
 nix run                       # 构建内核 + initramfs + rootfs，然后启动 QEMU
 ```
 
-第一次构建会编译 Asterinas 内核、从源码构建 Lix（坑 13），再打包出 596 MiB 的 ext2 镜像，
-全都发生在 Nix sandbox 里，给它几分钟。之后：
+没有缓存时，第一次构建会编译 Asterinas 内核、从源码构建 Lix（坑 13），再打包出 596 MiB
+的 ext2 镜像，全都发生在 Nix sandbox 里，给它几分钟。CI 会把这些产物推到
+[`dictyonos.cachix.org`](https://dictyonos.cachix.org)，flake 在 `nixConfig` 里声明了它，
+所以信任 flake 配置的机器直接 substitute：
+
+```sh
+nix run --accept-flake-config
+```
+
+不在 `accept-flake-config` 打开时 Nix 会忽略 flake 的 `nixConfig`（会有提示），所以缓存
+是「你同意才用」，而不是 flake 能强塞给你。多用户安装且你不是 trusted user 时，Nix 还不肯
+从 flake 里接收签名公钥，那就用 root 把
+`dictyonos.cachix.org-1:IRpGeZZJpVtQ7uPSCYKHbhz012v62JVyFwFH5ZSbSh8=` 加进
+`/etc/nix/nix.conf` 的 `trusted-public-keys`。
+
+之后：
 
 ```sh
 ssh -p 2222 root@127.0.0.1    # 启动脚本会生成一次性密钥并注入
@@ -403,7 +417,8 @@ AUTO=1 nix run
 一次运行会产出三份转录：`./serial.log`（第一次启动）、`./serial-boot2.log`（第二次启动）、
 `./serial.host.log`（ssh、`e2fsck`、`debugfs`），完整的一次抓取在
 [ACCEPTANCE.md](ACCEPTANCE.md)。[.github/workflows/ci.yml](.github/workflows/ci.yml) 在每次
-push 和 pull request 上跑同一套验收，并且无论成败都上传这些转录。
+push 和 pull request 上跑同一套验收，然后**在同一块状态盘上再启动一次**（`ROLLBACK=1`，
+必须从 `prevboot` 起来，转录是 `./serial-rollback.log`），并且无论成败都上传这四份转录。
 
 ## 已知限制
 

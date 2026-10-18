@@ -1,6 +1,20 @@
 {
   description = "dictyonos - Asterinas framekernel + sixos/s6 userland + Lix, bootable under QEMU";
 
+  # Everything here is expensive to build and content-addressed, so a cache pays
+  # for itself on the second machine. The key is the public half; the cache is
+  # written by CI (.github/workflows/ci.yml) with a repository secret.
+  #
+  # Nix honours a flake's nixConfig only when flake configuration is trusted,
+  # i.e. with --accept-flake-config or accept-flake-config = true in nix.conf.
+  # Without that it warns and builds from source, as before.
+  nixConfig = {
+    extra-substituters = [ "https://dictyonos.cachix.org" ];
+    extra-trusted-public-keys = [
+      "dictyonos.cachix.org-1:IRpGeZZJpVtQ7uPSCYKHbhz012v62JVyFwFH5ZSbSh8="
+    ];
+  };
+
   inputs = {
     # The Asterinas framekernel, pinned to the revision this glue layer was
     # developed and verified against.

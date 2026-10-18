@@ -19,11 +19,25 @@ jobs:
   acceptance:
     runs-on: ubuntu-latest
     timeout-minutes: 120
+    env:
+      # Where the built kernel, initramfs, rootfs and configuration are cached
+      # (public key: flake.nix). Pushing needs this secret; without it the two
+      # cache steps below are skipped and the job builds from source as before.
+      CACHIX_AUTH_TOKEN: ${{ secrets.CACHIX_AUTH_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@main
+
+      # Keeps a first-time or freshly bumped build from recompiling the kernel
+      # and Lix on every run.
+      - name: Set up the binary cache
+        if: env.CACHIX_AUTH_TOKEN != ''
+        uses: cachix/cachix-action@v15
+        with:
+          name: dictyonos
+          authToken: ${{ env.CACHIX_AUTH_TOKEN }}
 
       # QEMU should use KVM when it can: without it the machine still boots, but
       # in TCG emulation, which turns a two minute acceptance run into a very
@@ -48,17 +62,35 @@ jobs:
       - name: Evaluate every flake output
         run: nix flake check --all-systems --no-build
 
-      - name: Build the kernel, the initramfs and the rootfs
-        run: nix build .#kernel .#initramfs .#rootfs
+      - name: Build the kernel, the initramfs, the rootfs and the configuration
+        run: nix build .#kernel .#initramfs .#rootfs .#system
+
+      # The rootfs closure is about a gigabyte the first time, so this is slow
+      # once and cheap afterwards; it is guarded by the token like the setup step.
+      - name: Push the build to the binary cache
+        if: env.CACHIX_AUTH_TOKEN != ''
+        run: |
+          cachix push dictyonos \
+            $(nix build .#kernel .#initramfs .#rootfs .#system --no-link --print-out-paths)
 
       # Boots twice against the same state disk: the first boot runs the
-      # checks and writes /var/persist-early and /var/persist-late, the second
-      # has to find them again and has to present the same dropbear host key.
-      # 6G for the guest, because the runner has 16G and the Nix daemon lives
-      # there too.  The generous waits cost nothing on KVM and cover the TCG
-      # fallback, where every guest step takes several times as long.
-      - name: Run the acceptance (boot, ssh, reboot, persistence)
+      # checks, switches to a second generation and writes /var/persist-early
+      # and /var/persist-late; the second boot has to start that generation,
+      # find both files again and present the same dropbear host key. 6G for the
+      # guest, because the runner has 16G and the Nix daemon lives there too.
+      # The generous waits cost nothing on KVM and cover the TCG fallback, where
+      # every guest step takes several times as long.
+      - name: Run the acceptance (boot, ssh, reboot, persistence, new generation)
         run: AUTO=1 MEM=6G TIMEOUT=900 STEP_WAIT=300 HALT_WAIT=900 nix run
+
+      # The state disk still has nextboot = the generation boot 2 started and
+      # prevboot = the one the image came with, so one more boot with
+      # dictyonos.rollback=1 has to come up on prevboot. That is the rollback
+      # half of "change a generation and be able to change back".
+      - name: Roll back to the previous generation on the same state disk
+        run: |
+          AUTO=1 ROLLBACK=1 MEM=6G TIMEOUT=900 STEP_WAIT=300 HALT_WAIT=900 \
+            SERIAL_LOG=serial-rollback.log SERIAL_LOG_HOST=serial-rollback.host.log nix run
 
       - name: Upload the transcripts
         if: always()
@@ -69,5 +101,7 @@ jobs:
             serial.log
             serial-boot2.log
             serial.host.log
+            serial-rollback.log
+            serial-rollback.host.log
             .dictyonos-vm/id_ed25519.pub
           if-no-files-found: warn

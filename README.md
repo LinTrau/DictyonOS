@@ -163,9 +163,25 @@ cd dictyonos
 nix run                       # builds kernel + initramfs + rootfs, then boots QEMU
 ```
 
-The first build compiles the Asterinas kernel, builds Lix from source (gotcha 13)
-and packs a 596 MiB ext2 image, all inside the Nix sandbox: give it a few
-minutes. Afterwards:
+Without a cache the first build compiles the Asterinas kernel, builds Lix from
+source (gotcha 13) and packs a 596 MiB ext2 image, all inside the Nix sandbox:
+give it a few minutes. CI pushes those outputs to
+[`dictyonos.cachix.org`](https://dictyonos.cachix.org), which the flake declares
+in `nixConfig`, so a machine that trusts flake configuration substitutes them
+instead:
+
+```sh
+nix run --accept-flake-config
+```
+
+Nix ignores a flake's `nixConfig` unless `accept-flake-config` is on (a warning
+says so), which is what keeps the cache opt-in rather than something a flake can
+push on you. On a multi-user install where you are not a trusted user, Nix also
+refuses to take the signing key from the flake; add
+`dictyonos.cachix.org-1:IRpGeZZJpVtQ7uPSCYKHbhz012v62JVyFwFH5ZSbSh8=` to
+`trusted-public-keys` in `/etc/nix/nix.conf` as root in that case.
+
+Afterwards:
 
 ```sh
 ssh -p 2222 root@127.0.0.1    # the launcher generates a throwaway key and injects it
@@ -488,7 +504,9 @@ Three transcripts come out of it: `./serial.log` (boot 1), `./serial-boot2.log`
 (boot 2) and `./serial.host.log` (ssh, `e2fsck`, `debugfs`). A captured run is
 in [ACCEPTANCE.md](ACCEPTANCE.md).
 [.github/workflows/ci.yml](.github/workflows/ci.yml) runs the same acceptance on
-every push and pull request, and uploads those transcripts either way.
+every push and pull request, then one more boot with `ROLLBACK=1` on the same
+state disk, which has to come up on `prevboot` (`./serial-rollback.log`), and
+uploads all four transcripts either way.
 
 ## Known limitations
 
