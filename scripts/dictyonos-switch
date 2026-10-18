@@ -1,0 +1,71 @@
+#!/bin/sh
+# dictyonos-switch -- choose the configuration the next boot starts.
+#
+# The kernel command line names one configuration, and stage1-init falls back to
+# it. This script is the other way round: it records the choice in the profiles
+# directory on the state disk (/nix/var/nix/profiles, which lives on /dev/vdb),
+# which stage1-init prefers over the command line. That is what makes a second
+# generation selectable without editing the launcher.
+#
+# The switch is not hot: nothing is restarted now, and the machine keeps running
+# the configuration it booted. The next boot reads nextboot.
+#
+# usage: dictyonos-switch /nix/store/<configuration>
+#        dictyonos-switch /run/current-system     (no-op that re-records itself)
+#
+# To go back to what was in use before the last switch, boot with
+#     dictyonos.rollback=1
+# on the kernel command line (the launcher takes it through CMDLINE).
+set -eu
+
+PROFILES=/nix/var/nix/profiles
+
+if [ "$#" -ne 1 ]; then
+    echo "usage: dictyonos-switch /nix/store/<configuration>" >&2
+    exit 2
+fi
+
+new="$1"
+# /run/current-system is a symlink to the running configuration, and the profile
+# machinery has to record a path that still means something on the next boot.
+new="$(readlink -f "$new")"
+if [ ! -d "$new" ] || { [ ! -e "$new/boot/init" ] && [ ! -L "$new/boot/init" ]; }; then
+    echo "dictyonos-switch: $new is not a sixos configuration (no boot/init)" >&2
+    exit 1
+fi
+case "$new" in
+/nix/store/*) ;;
+*)
+    echo "dictyonos-switch: $new is not in /nix/store, so it would not exist on the next boot" >&2
+    exit 1 ;;
+esac
+
+mkdir -p "$PROFILES"
+current="$(readlink "$PROFILES/nextboot" 2>/dev/null || true)"
+
+# These two names are symlinks to a configuration, i.e. to a directory, and a
+# plain "mv new name" would move the temporary link *inside* the old target
+# instead of replacing it. So: create the new link beside it, remove the old
+# name, then rename. The window in between is harmless -- nothing reads these
+# profiles except stage1-init, on the way up.
+put() {
+    rm -f "$PROFILES/$1.new"
+    ln -s "$2" "$PROFILES/$1.new"
+    rm -f "$PROFILES/$1"
+    mv -f "$PROFILES/$1.new" "$PROFILES/$1"
+}
+
+# Keep what was selected until now, so rollback has somewhere to go.
+if [ -n "$current" ] && [ "$current" != "$new" ]; then
+    put prevboot "$current"
+fi
+put nextboot "$new"
+
+# The profiles are on the state disk, and nothing else will commit them:
+# Asterinas never writes dirty pages back on its own (see README gotcha 11).
+sync -f /var 2>/dev/null || sync 2>/dev/null || true
+
+echo "next boot: $new"
+if [ -n "$current" ] && [ "$current" != "$new" ]; then
+    echo "go back : boot with dictyonos.rollback=1 ($current)"
+fi

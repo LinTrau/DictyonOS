@@ -89,12 +89,13 @@ Asterinas 内核
 [dictyonos-init]                                 initramfs.nix + stage1-init.sh
   |  mount proc / sys / devtmpfs，链接 /dev/ptmx
   |  mount -t ext2 -o ro /dev/vda -> /sysroot    系统镜像：configuration + store
-  |  从 /proc/cmdline 读出 configuration=<store-path>
   |  mount -t ext2 -o rw /dev/vdb -> /var        可写状态盘
-  |  bind /var/nix-var 到 /nix/var
+  |  bind /var/nix-var 到 /nix/var               nextboot/prevboot 就住在这里
   |  overlay /nix/store：lower = vda，upper = /var/nix-store-upper
+  |  选一个 configuration：先看 prevboot（若 dictyonos.rollback=1），
+  |                       再看 nextboot，最后才是 /proc/cmdline 的 configuration=
   |  mount --move /proc /sys /dev 进 /sysroot
-  |  switch_root /sysroot <configuration>/boot/init
+  |  switch_root /sysroot <选中的>/boot/init
   v
 s6-linux-init                                    挂载 tmpfs /run，解开自己的 cpio，
   |                                              把内核环境导出到 /run/boot
@@ -126,6 +127,7 @@ initramfs.nix                  构建 stage-1 cpio.gz（静态 busybox + /init�
 stage1-init.sh                 stage-1 的 /init 本体
 rootfs.nix                     产出 rootfs.ext2 的纯 derivation
 scripts/run-vm.sh              在 QEMU 里启动产物
+scripts/dictyonos-switch       记录下一次启动用哪一份 configuration
 scripts/merge-cargo-locks.py   合并构建需要的三个 Cargo.lock
 scripts/vendor-git-deps.py     把 asterinas 的 git 依赖改写成 path 依赖
 ```
@@ -201,6 +203,32 @@ Lix 的数据库、profile 和守护进程 socket 才有地方住。store 的上
 
 Asterinas 自己从不回写脏页（坑 11），所以有一个小小的 `state-sync` 服务每 30 秒用 `sync -f`
 把 `/var` 落盘。状态盘能重复使用就是靠它：没有它，虚拟机一死盘上的内容就没了。
+
+### 切换代际
+
+镜像里只带一份 configuration，stage1 靠内核命令行上的 `configuration=` 找到它。状态盘
+可以另存一个选择：stage1 在退回命令行之前，会先读 `/nix/var/nix/profiles/nextboot`（它
+在 `/dev/vdb` 上），所以记在那里的 configuration 决定下一次启动。
+
+`dictyonos-switch` 就是用来记它的，同时把之前选中的那份留作 `prevboot`：
+
+```sh
+dictyonos-switch /nix/store/<新的-configuration>
+# next boot: /nix/store/<新的-configuration>
+# go back : boot with dictyonos.rollback=1 (/nix/store/<之前那份>)
+```
+
+在内核命令行上加 `dictyonos.rollback=1` 启动，就会改从 `prevboot` 起。实际做法是把
+整条命令行交给启动器，因为命令行是启动器写进去的：
+
+```sh
+CONFIG="$(nix build --no-link --print-out-paths .#system)"
+CMDLINE="$(cat "$CONFIG/boot/kernel-params") dictyonos.rollback=1" nix run
+```
+
+只有当路径确实存在于 `/nix/store` 下时，候选才会被采用；别的镜像留下的 profile 会被
+跳过、退回命令行，而不是把启动卡死。切换不是热切换：现在什么都不会重启，虚拟机会一直
+跑着它启动时的那一代，直到下次重启。
 
 ### 不用 flakes
 
@@ -391,6 +419,9 @@ push 和 pull request 上跑同一套验收，并且无论成败都上传这些�
   `sync -f` 再读回；`/var/persist-late` 故意从不同步，靠服务自己走一拍落到盘上；第二次
   启动把两者都读回来。
 * **会修复的 `e2fsck` 会弄坏状态盘**（坑 14）。验收只跑 `e2fsck -fn`。
+* **回滚是手动的。** `dictyonos.rollback=1` 只把 `prevboot` 顶到前面启动一次，没有任何
+  东西会自己发现新一代没起来，也不会让这个选择固定下来。一代如果在 s6 起来之前就坏了，
+  仍然得有人手动加上 `dictyonos.rollback=1`。
 
 ## 许可与上游致谢
 

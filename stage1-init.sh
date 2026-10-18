@@ -60,24 +60,10 @@ if [ -z "$ROOT" ]; then
 fi
 msg "mounted read-only system image from $ROOT on $NEWROOT"
 
-FOUND=""
-for candidate in "$CONFIGURATION" \
-                 "$($BB readlink "$NEWROOT/nix/var/nix/profiles/nextboot" 2>/dev/null)"; do
-    [ -n "$candidate" ] || continue
-    # boot/init is normally a symlink into the same /nix/store, whose target is
-    # an absolute path. That path only resolves after switch_root, so test for
-    # the symlink itself rather than following it here.
-    if [ -d "$NEWROOT$candidate" ] &&
-       { [ -L "$NEWROOT$candidate/boot/init" ] || [ -e "$NEWROOT$candidate/boot/init" ]; }; then
-        FOUND="$candidate"; break
-    fi
-done
-
-if [ -z "$FOUND" ]; then
-    msg "no usable sixos configuration found under $NEWROOT/nix/store"
-    die "cannot continue"
-fi
-msg "handing off to $FOUND/boot/init"
+# Which configuration to boot is decided further down, after the state disk is
+# mounted: the profiles directory lives in /nix/var, and a generation recorded
+# there is invisible until that is in place. The configuration the launcher
+# passed on the command line is the fallback.
 
 # --- writable state ---------------------------------------------------------
 # /dev/vdb holds everything mutable. Without it the machine still boots, with
@@ -94,8 +80,17 @@ fi
 $BB mkdir -p "$NEWROOT/var/log" "$NEWROOT/var/root" "$NEWROOT/var/nix-var"
 
 # /nix/var is mutable too (daemon socket, profiles, gcroots) while /nix/store
-# stays with the read-only image.
+# stays with the read-only image. The image's own profiles are hidden by this
+# bind, so remember what it says about itself first: on a state disk that has
+# never carried a generation, that is what nextboot is seeded with.
+IMAGE_NEXTBOOT="$($BB readlink "$NEWROOT/nix/var/nix/profiles/nextboot" 2>/dev/null || true)"
 $BB mount --bind "$NEWROOT/var/nix-var" "$NEWROOT/nix/var"
+PROFILES="$NEWROOT/nix/var/nix/profiles"
+$BB mkdir -p "$PROFILES"
+if [ -n "$IMAGE_NEXTBOOT" ] && [ ! -e "$PROFILES/nextboot" ]; then
+    $BB ln -s "$IMAGE_NEXTBOOT" "$PROFILES/nextboot" \
+        && msg "seeded nextboot from the system image: $IMAGE_NEXTBOOT"
+fi
 
 # --- a writable /nix/store --------------------------------------------------
 # On the read-only system image the store is read-only with it, so Lix can
@@ -138,6 +133,57 @@ if [ "$OVERLAY" = 0 ]; then
     $BB mount --bind "$NEWROOT/nix/store" "$NEWROOT/nix/store" \
         || msg "warning: could not bind-mount /nix/store onto itself; Lix may refuse to run"
 fi
+
+# --- which configuration to boot --------------------------------------------
+# Now that the overlay is on, everything the store contains is visible, including
+# a generation that lives in the writable upper layer rather than in the image.
+# The order is prevboot (only when the kernel command line asks for
+# dictyonos.rollback=1), then nextboot, then the configuration= the launcher
+# passed. A candidate is used only if it is really present under the mounted
+# store, so a stale symlink -- /nix/store rebuilt, the path garbage-collected, a
+# state disk from a different image -- falls through to the next one instead of
+# bricking the boot.
+ROLLBACK=""
+for x in $CMDLINE; do
+    case "$x" in
+        dictyonos.rollback=*) ROLLBACK="${x#dictyonos.rollback=}" ;;
+    esac
+done
+
+FOUND=""
+FROM=""
+try() {
+    # try <what named it> <path>; sets FOUND/FROM and returns 0 when it is usable.
+    _label="$1"
+    _candidate="$2"
+    [ -n "$_candidate" ] || return 1
+    # boot/init is normally a symlink into the same /nix/store, whose target is
+    # an absolute path. That path only resolves after switch_root, so test for
+    # the symlink itself rather than following it here.
+    if [ -d "$NEWROOT$_candidate" ] &&
+       { [ -L "$NEWROOT$_candidate/boot/init" ] || [ -e "$NEWROOT$_candidate/boot/init" ]; }; then
+        FOUND="$_candidate"
+        FROM="$_label"
+        return 0
+    fi
+    msg "$_label names $_candidate, which is not a usable configuration"
+    return 1
+}
+
+if [ -n "$ROLLBACK" ] && [ "$ROLLBACK" != 0 ]; then
+    msg "dictyonos.rollback=$ROLLBACK: prevboot before nextboot"
+    try "prevboot" "$($BB readlink "$PROFILES/prevboot" 2>/dev/null || true)" || true
+fi
+[ -n "$FOUND" ] || try "nextboot" "$($BB readlink "$PROFILES/nextboot" 2>/dev/null || true)" || true
+[ -n "$FOUND" ] || try "the kernel command line" "$CONFIGURATION" || true
+
+if [ -z "$FOUND" ]; then
+    msg "no usable sixos configuration found under $NEWROOT/nix/store"
+    msg "  nextboot: $($BB readlink "$PROFILES/nextboot" 2>/dev/null || true)"
+    msg "  prevboot: $($BB readlink "$PROFILES/prevboot" 2>/dev/null || true)"
+    die "cannot continue"
+fi
+msg "handing off to $FOUND/boot/init (from $FROM)"
 
 # --- hand the pseudo filesystems over ---------------------------------------
 $BB mkdir -p "$NEWROOT/proc" "$NEWROOT/sys" "$NEWROOT/dev" "$NEWROOT/run"

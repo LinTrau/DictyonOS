@@ -201,6 +201,20 @@ let
     done
   '';
 
+  # The generation switch, installed as an ordinary command. linkFarm makes it a
+  # symlink into the store rather than a copy built by a stdenv derivation, so
+  # what the image ships is exactly scripts/dictyonos-switch.
+  #
+  # It writes nextboot/prevboot into /nix/var/nix/profiles, which stage1-init
+  # reads on the way up (see stage1-init.sh): that is the only thing that makes
+  # a second configuration selectable without editing the launcher.
+  dictyonos-switch = pkgs.linkFarm "dictyonos-switch" [
+    {
+      name = "bin/dictyonos-switch";
+      path = ./scripts/dictyonos-switch;
+    }
+  ];
+
   # Minimal SSH: dropbear, public-key only. The launcher generates a throwaway
   # keypair on the host and passes the public half on the kernel command line as
   #   dictyonos.ssh_key_type=ssh-ed25519 dictyonos.ssh_key=<base64 blob>
@@ -367,6 +381,7 @@ let
           pkgs.s6-portable-utils
           pkgs.doas
           pkgs.dropbear
+          dictyonos-switch
           # Lix verifies TLS with libcurl, and the image would otherwise ship no
           # trust store at all: every https:// substitution (and any other
           # https client in the guest) fails with "unable to get local issuer

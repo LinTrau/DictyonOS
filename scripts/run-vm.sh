@@ -430,6 +430,13 @@ auto_boot1() {
   auto "echo ---- store write ----; echo built-in-the-guest > /tmp/dictyonos-store-write.txt; nix store add-file /tmp/dictyonos-store-write.txt; echo add-file-exit=\$?; sync -f /var"
   auto "echo ---- build ----; nix build --no-link --print-out-paths --expr \"derivation { name = ''dictyonos-build-test''; system = ''x86_64-linux''; builder = ''/bin/sh''; args = [ ''-c'' ''echo built-in-the-guest > \\\$out'' ]; }\"; echo build-exit=\$?; sync -f /var"
   auto "echo ---- built content ----; ls -ld /nix/store/*-dictyonos-build-test /nix/store/*-dictyonos-store-write.txt; cat /nix/store/*-dictyonos-build-test; cat /nix/store/*-dictyonos-store-write.txt"
+  # Generation switching. A second generation has to be a *different* store path
+  # for this to mean anything, and the image carries exactly one configuration, so
+  # the guest copies it to a second name first. That copy is a fixture, not a
+  # hashed store path: it exists only so that the next boot has something else to
+  # start. dictyonos-switch then records it in nextboot and keeps the booted
+  # configuration as prevboot, on the state disk.
+  auto "echo ---- generations ----; mkdir -p /nix/store/dictyonos-generation-2; cp -a /run/current-system/. /nix/store/dictyonos-generation-2/; echo copy-exit=\$?; dictyonos-switch /nix/store/dictyonos-generation-2; echo switch-exit=\$?; echo nextboot=\$(readlink /nix/var/nix/profiles/nextboot); echo prevboot=\$(readlink /nix/var/nix/profiles/prevboot); sync -f /var"
   # The late half of the round-trip deliberately syncs nothing itself: it waits
   # for the state-sync service's next tick, so the host-side debugfs read proves
   # the service (rather than this shell) committed the state disk.
@@ -448,6 +455,7 @@ auto_boot2() {
   auto "echo ---- host key ----; dropbearkey -y -f /var/lib/dropbear/dropbear_ed25519_host_key | tail -2"
   auto "echo ---- state-sync log ----; tail -3 /var/log/state-sync/current"
   auto "echo ---- store persistence ----; ls -ld /nix/store/*-dictyonos-build-test /nix/store/*-dictyonos-store-write.txt; cat /nix/store/*-dictyonos-build-test; cat /nix/store/*-dictyonos-store-write.txt"
+  auto "echo ---- generation ----; echo nextboot=\$(readlink /nix/var/nix/profiles/nextboot); echo prevboot=\$(readlink /nix/var/nix/profiles/prevboot); ls -ld /nix/store/dictyonos-generation-2/boot/init"
   # The verdict is printed with its first word split off, so that this command
   # line -- which the tty echoes back -- does not itself contain the string the
   # host searches the transcript for.
@@ -507,6 +515,17 @@ if [ "${AUTO:-0}" = "1" ]; then
     fi
     if grep -q "REBOOT-PERSISTENCE-FAILED" "$LOG2"; then
       echo "==> boot 2 reported REBOOT-PERSISTENCE-FAILED" >&2
+      FAIL=1
+    fi
+    # The boot-2 kernel command line still names the configuration baked into the
+    # image; only the profiles written by dictyonos-switch on the state disk name
+    # the second one. So this line in the initramfs output is the proof that the
+    # recorded generation, not the command line, decided what booted.
+    if grep -q "handing off to /nix/store/dictyonos-generation-2/boot/init (from nextboot)" "$LOG2"; then
+      echo "==> generations: boot 2 started the configuration recorded on the state disk, not the one on the command line" \
+        | tee -a "$HOST_LOG"
+    else
+      echo "==> generations: boot 2 did not follow the state disk's nextboot" >&2
       FAIL=1
     fi
   fi

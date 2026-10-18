@@ -110,12 +110,13 @@ Asterinas kernel
 [dictyonos-init]                                 initramfs.nix + stage1-init.sh
   |  mount proc / sys / devtmpfs, link /dev/ptmx
   |  mount -t ext2 -o ro /dev/vda -> /sysroot    the system image: configuration + store
-  |  read configuration=<store-path> from /proc/cmdline
   |  mount -t ext2 -o rw /dev/vdb -> /var        the writable state disk
-  |  bind /var/nix-var over /nix/var
+  |  bind /var/nix-var over /nix/var             nextboot/prevboot live there
   |  overlay /nix/store: lower = vda, upper = /var/nix-store-upper
+  |  pick a configuration: prevboot if dictyonos.rollback=1, then nextboot,
+  |                        then configuration= from /proc/cmdline
   |  mount --move /proc /sys /dev into /sysroot
-  |  switch_root /sysroot <configuration>/boot/init
+  |  switch_root /sysroot <chosen>/boot/init
   v
 s6-linux-init                                    mounts tmpfs /run, unpacks its cpio,
   |                                              dumps the kernel environment into /run/boot
@@ -149,6 +150,7 @@ initramfs.nix                  builds the stage-1 cpio.gz (static busybox + /ini
 stage1-init.sh                 the stage-1 /init itself
 rootfs.nix                     pure derivation that emits rootfs.ext2
 scripts/run-vm.sh              boots the result under QEMU
+scripts/dictyonos-switch       records which configuration the next boot starts
 scripts/merge-cargo-locks.py   merges the three Cargo.lock files the build needs
 scripts/vendor-git-deps.py     rewrites asterinas git dependencies into path deps
 ```
@@ -235,6 +237,36 @@ Asterinas never writes dirty pages back on its own (gotcha 11), so a small
 `state-sync` service commits `/var` with `sync -f` every 30 seconds. That is
 what makes the disk reusable: without it, its contents evaporate when the VM
 dies.
+
+### Switching generations
+
+The image carries one configuration, and `configuration=` on the kernel command
+line is how stage1 finds it. A state disk can carry another choice: stage1 reads
+`/nix/var/nix/profiles/nextboot`, which lives on `/dev/vdb`, before it falls
+back to the command line, so a configuration recorded there decides the next
+boot.
+
+`dictyonos-switch` records one and keeps whatever was selected before:
+
+```sh
+dictyonos-switch /nix/store/<new-configuration>
+# next boot: /nix/store/<new-configuration>
+# go back : boot with dictyonos.rollback=1 (/nix/store/<previous>)
+```
+
+Booting with `dictyonos.rollback=1` starts `prevboot` instead. In practice that
+means handing the whole command line to the launcher, because it is the launcher
+that writes it:
+
+```sh
+CONFIG="$(nix build --no-link --print-out-paths .#system)"
+CMDLINE="$(cat "$CONFIG/boot/kernel-params") dictyonos.rollback=1" nix run
+```
+
+A candidate is used only when the path really exists under `/nix/store`, so a
+profile left behind by a different image falls through to the command line
+instead of stopping the boot. The switch is not hot: nothing restarts now, and
+the machine keeps running what it booted until it is rebooted.
 
 ### Without flakes
 
@@ -480,6 +512,10 @@ every push and pull request, and uploads those transcripts either way.
   service ticked; and the second boot reads both back.
 * **A repairing `e2fsck` would damage the state disk** (gotcha 14). The
   acceptance only ever runs `e2fsck -fn`.
+* **Rolling back is manual.** `dictyonos.rollback=1` puts `prevboot` back in
+  front for one boot; nothing notices by itself that a new generation failed to
+  come up, and nothing makes the choice stick. A generation that breaks before
+  s6 starts still needs its `dictyonos.rollback=1` typed in by hand.
 
 ## License & upstream credits
 

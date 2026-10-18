@@ -48,32 +48,32 @@ exe; ps aux 2>/dev/null; echo DICTYONOS-OK-"04"
 /nix/store/fqbzpslyx0mfwmiwpn7vbdar39g756dx-s6-2.12.0.4/bin/s6-svscan
 PID   USER     TIME  COMMAND
     1 root      0:00 /nix/store/fqbzpslyx0mfwmiwpn7vbdar39g756dx-s6-2.12.0.4/bi
-   26 root      0:00 s6-supervise s6-svscan-log
-   27 root      0:00 s6-supervise s6-linux-init-runleveld
-   28 root      0:00 s6-supervise s6-linux-init-shutdownd
-   29 root      0:00 s6-supervise s6-linux-init-early-getty
-   30 root      0:00 /nix/store/fqbzpslyx0mfwmiwpn7vbdar39g756dx-s6-2.12.0.4/bi
-   31 root      0:00 /nix/store/fqbzpslyx0mfwmiwpn7vbdar39g756dx-s6-2.12.0.4/bi
-   32 root      0:00 /nix/store/js0jfqxgrlb7bwk8lr1qa4h3cb4cd0fm-s6-linux-init-
-   33 root      0:00 /nix/store/v9835pqvwavkylzv7a5jlvq2m0jd4ddz-busybox-1.36.1
-   49 root      0:00 s6-supervise lix-daemon
-   50 root      0:00 s6-supervise lix-daemon-log
-   51 root      0:00 s6-supervise s6rc-fdholder
-   52 root      0:00 s6-supervise s6rc-oneshot-runner
-   53 root      0:00 s6-supervise ssh
-   54 root      0:00 s6-supervise ssh-log
-   55 root      0:00 s6-supervise state-sync
-   56 root      0:00 s6-supervise state-sync-log
-   63 root      0:00 /nix/store/fqbzpslyx0mfwmiwpn7vbdar39g756dx-s6-2.12.0.4/bi
-   64 root      0:00 /nix/store/fqbzpslyx0mfwmiwpn7vbdar39g756dx-s6-2.12.0.4/bi
-  105 root      0:00 /nix/store/fqbzpslyx0mfwmiwpn7vbdar39g756dx-s6-2.12.0.4/bi
-  106 root      0:00 /nix/store/fqbzpslyx0mfwmiwpn7vbdar39g756dx-s6-2.12.0.4/bi
-  108 root      0:00 /nix/store/fqbzpslyx0mfwmiwpn7vbdar39g756dx-s6-2.12.0.4/bi
-  117 root      0:00 {yqqw32lw56s9plm} /nix/store/v9835pqvwavkylzv7a5jlvq2m0jd4
-  118 root      0:00 /nix/store/50gf8bygvm8cv7gw73w6w5injdrcpzhk-dropbear-2022.
-  119 root      0:05 /nix/store/23i45j5xlngp9hwwj0l9y4x9rq5j6i6r-lix-2.94.2/bin
-  149 root      0:00 /nix/store/v9835pqvwavkylzv7a5jlvq2m0jd4ddz-busybox-1.36.1
-  153 root      0:00 ps aux
+   31 root      0:00 s6-supervise s6-svscan-log
+   32 root      0:00 s6-supervise s6-linux-init-runleveld
+   33 root      0:00 s6-supervise s6-linux-init-shutdownd
+   34 root      0:00 s6-supervise s6-linux-init-early-getty
+   35 root      0:00 /nix/store/fqbzpslyx0mfwmiwpn7vbdar39g756dx-s6-2.12.0.4/bi
+   36 root      0:00 /nix/store/js0jfqxgrlb7bwk8lr1qa4h3cb4cd0fm-s6-linux-init-
+   37 root      0:00 /nix/store/v9835pqvwavkylzv7a5jlvq2m0jd4ddz-busybox-1.36.1
+   38 root      0:00 /nix/store/fqbzpslyx0mfwmiwpn7vbdar39g756dx-s6-2.12.0.4/bi
+   54 root      0:00 s6-supervise lix-daemon
+   55 root      0:00 s6-supervise lix-daemon-log
+   56 root      0:00 s6-supervise s6rc-fdholder
+   57 root      0:00 s6-supervise s6rc-oneshot-runner
+   58 root      0:00 s6-supervise ssh
+   59 root      0:00 s6-supervise ssh-log
+   60 root      0:00 s6-supervise state-sync
+   61 root      0:00 s6-supervise state-sync-log
+   67 root      0:00 /nix/store/fqbzpslyx0mfwmiwpn7vbdar39g756dx-s6-2.12.0.4/bi
+   69 root      0:00 /nix/store/fqbzpslyx0mfwmiwpn7vbdar39g756dx-s6-2.12.0.4/bi
+  110 root      0:00 /nix/store/fqbzpslyx0mfwmiwpn7vbdar39g756dx-s6-2.12.0.4/bi
+  112 root      0:00 /nix/store/fqbzpslyx0mfwmiwpn7vbdar39g756dx-s6-2.12.0.4/bi
+  114 root      0:00 /nix/store/fqbzpslyx0mfwmiwpn7vbdar39g756dx-s6-2.12.0.4/bi
+  121 root      0:00 /nix/store/50gf8bygvm8cv7gw73w6w5injdrcpzhk-dropbear-2022.
+  123 root      0:00 {yqqw32lw56s9plm} /nix/store/v9835pqvwavkylzv7a5jlvq2m0jd4
+  124 root      0:04 /nix/store/23i45j5xlngp9hwwj0l9y4x9rq5j6i6r-lix-2.94.2/bin
+  154 root      0:00 /nix/store/v9835pqvwavkylzv7a5jlvq2m0jd4ddz-busybox-1.36.1
+  158 root      0:00 ps aux
 DICTYONOS-OK-04
 /run/service/s6-linux-init-early-getty # echo ---- s6 ----; if [ -d /run/s6-rc ]
 
@@ -95,12 +95,12 @@ DICTYONOS-OK-05
 
 /service/$s; done 2>&1; echo DICTYONOS-OK-"06"
 ---- svstat ----
-up (pid 118) 37 seconds
-up (pid 105) 37 seconds
-up (pid 119) 37 seconds
-up (pid 108) 37 seconds
-up (pid 117) 37 seconds
-up (pid 64) 38 seconds, ready 38 seconds
+up (pid 121) 37 seconds
+up (pid 110) 37 seconds
+up (pid 124) 37 seconds
+up (pid 114) 37 seconds
+up (pid 123) 37 seconds
+up (pid 67) 38 seconds, ready 37 seconds
 DICTYONOS-OK-06
 /run/service/s6-linux-init-early-getty # echo ---- svclogs ----; echo '== ssh';
 
@@ -111,22 +111,22 @@ aemon/current 2>&1; echo '== state-sync'; tail -8 /var/log/state-sync/current 2>
 &1; echo DICTYONOS-OK-"07"
 ---- svclogs ----
 == ssh
-@400000006ad320021a158e0b dropbear: installed the authorized key from the kernel command line
-@400000006ad320021cb768d0 dropbear: listening on 10.0.2.15:22
-@400000006ad320021f2a7c60 [118] Oct 17 00:12:29 Not backgrounding
-@400000006ad320062c7edd37 [139] Oct 17 00:12:33 Child connection from 10.0.2.2:49230
-@400000006ad3200631f5869b [139] Oct 17 00:12:33 Pubkey auth succeeded for 'root' with ssh-ed25519 key SHA256:xZaF01c6o8MX3cmqpGitnKrX0dbhyhTzzbjjC3BqKvM from 10.0.2.2:49230
-@400000006ad320063293df5e [139] Oct 17 00:12:33 Exit (root) from <10.0.2.2:49230>: Disconnect received
-@400000006ad3200633bdf9a7 [141] Oct 17 00:12:33 Child connection from 10.0.2.2:49242
-@400000006ad320063979094b [141] Oct 17 00:12:33 Pubkey auth succeeded for 'root' with ssh-ed25519 key SHA256:xZaF01c6o8MX3cmqpGitnKrX0dbhyhTzzbjjC3BqKvM from 10.0.2.2:49242
-@400000006ad320063aebfa20 [141] Oct 17 00:12:33 Exit (root) from <10.0.2.2:49242>: Disconnect received
-@400000006ad320063b498fd0 [145] Oct 17 00:12:33 Child connection from 10.0.2.2:49258
-@400000006ad32007002901dc [145] Oct 17 00:12:33 Exit before auth from <10.0.2.2:49258>: Error reading: Connection reset by peer
-@400000006ad320072c26417f [146] Oct 17 00:12:34 Child connection from 10.0.2.2:40064
-@400000006ad320072c49f150 [146] Oct 17 00:12:34 Exit before auth from <10.0.2.2:40064>: Error reading: Connection reset by peer
+@400000006ad479d40bb5c7ee dropbear: installed the authorized key from the kernel command line
+@400000006ad479d40db45c8b dropbear: listening on 10.0.2.15:22
+@400000006ad479d4106f474e [121] Oct 18 00:47:59 Not backgrounding
+@400000006ad479d822bc1e36 [144] Oct 18 00:48:03 Child connection from 10.0.2.2:59920
+@400000006ad479d828c39121 [144] Oct 18 00:48:03 Pubkey auth succeeded for 'root' with ssh-ed25519 key SHA256:xZaF01c6o8MX3cmqpGitnKrX0dbhyhTzzbjjC3BqKvM from 10.0.2.2:59920
+@400000006ad479d8293b92cd [144] Oct 18 00:48:03 Exit (root) from <10.0.2.2:59920>: Disconnect received
+@400000006ad479d82a624e67 [146] Oct 18 00:48:03 Child connection from 10.0.2.2:59926
+@400000006ad479d82ffcef8c [146] Oct 18 00:48:03 Pubkey auth succeeded for 'root' with ssh-ed25519 key SHA256:xZaF01c6o8MX3cmqpGitnKrX0dbhyhTzzbjjC3BqKvM from 10.0.2.2:59926
+@400000006ad479d8315d3180 [146] Oct 18 00:48:03 Exit (root) from <10.0.2.2:59926>: Disconnect received
+@400000006ad479d831e22f2d [150] Oct 18 00:48:03 Child connection from 10.0.2.2:59942
+@400000006ad479d83255451e [150] Oct 18 00:48:03 Exit before auth from <10.0.2.2:59942>: Error reading: Connection reset by peer
+@400000006ad479d928190c07 [151] Oct 18 00:48:04 Child connection from 10.0.2.2:53714
+@400000006ad479d92846f996 [151] Oct 18 00:48:04 Exit before auth from <10.0.2.2:53714>: Error reading: Connection reset by peer
 == lix-daemon
 == state-sync
-@400000006ad32020187bb100 state-sync: committing /var
+@400000006ad479f20a8b486c state-sync: committing /var
 DICTYONOS-OK-07
 /run/service/s6-linux-init-early-getty # echo ---- persist ----; echo early > /v
 
@@ -170,13 +170,13 @@ User configuration files: /root/.config/nix/nix.conf:/etc/xdg/nix/nix.conf
 Store directory: /nix/store
 State directory: /nix/var/nix
 Data directory: /nix/store/23i45j5xlngp9hwwj0l9y4x9rq5j6i6r-lix-2.94.2/share
-[    48.028] WARN  : PID 173: terminating on signal SIGKILL
+[    47.985] WARN  : PID 178: terminating on signal SIGKILL
 DICTYONOS-OK-11
 /run/service/s6-linux-init-early-getty # nix eval --expr '1 + 1'; echo DICTYONOS
 
 -OK-"12"
 2
-[    50.015] WARN  : PID 175: terminating on signal SIGKILL
+[    49.955] WARN  : PID 180: terminating on signal SIGKILL
 DICTYONOS-OK-12
 /run/service/s6-linux-init-early-getty # echo ---- store write ----; echo built-
 
@@ -185,9 +185,9 @@ in-the-guest > /tmp/dictyonos-store-write.txt; nix store add-file /tmp/dictyonos
 -store-write.txt; echo add-file-exit=$?; sync -f /var; echo DICTYONOS-OK-"13"
 ---- store write ----
 /nix/store/caardw9r23xgi40d2ymsbjr9mncb2lm1-dictyonos-store-write.txt
-[    52.474] WARN  : PID 177: terminating on signal SIGKILL
+[    52.392] WARN  : PID 182: terminating on signal SIGKILL
 add-file-exit=0
-[    52.514] WARN  : PID 179: terminating on signal SIGKILL
+[    52.432] WARN  : PID 184: terminating on signal SIGKILL
 DICTYONOS-OK-13
 /run/service/s6-linux-init-early-getty # echo ---- build ----; nix build --no-li
 
@@ -198,14 +198,14 @@ m = ''x86_64-linux''; builder = ''/bin/sh''; args = [ ''-c'' ''echo built-in-the
 -guest > \$out'' ]; }"; echo build-exit=$?; sync -f /var; echo DICTYONOS-OK-"14"
 
 ---- build ----
-warning: error: unable to download 'https://cache.nixos.org/nix-cache-info': Resolving timed out after 5104 milliseconds (curl error code=28); retrying in 618ms ms (attempt 1/5)
-[    61.248] WARN  : PID 192: terminating on signal SIGKILL
-[    61.248] WARN  : PID 192: terminating on signal SIGKILL
-[    61.291] WARN  : `personality(ADDR_NO_RANDOMIZE)` is accepted, but still does not disable ASLR
+warning: error: unable to download 'https://cache.nixos.org/nix-cache-info': Resolving timed out after 5066 milliseconds (curl error code=28); retrying in 557ms ms (attempt 1/5)
+[    61.030] WARN  : PID 197: terminating on signal SIGKILL
+[    61.030] WARN  : PID 197: terminating on signal SIGKILL
+[    61.059] WARN  : `personality(ADDR_NO_RANDOMIZE)` is accepted, but still does not disable ASLR
 /nix/store/kfvsv78kfdskj96m3bm50v0dhnrbhkgh-dictyonos-build-test
-[    61.306] WARN  : PID 183: terminating on signal SIGKILL
+[    61.073] WARN  : PID 188: terminating on signal SIGKILL
 build-exit=0
-[    61.336] WARN  : PID 185: terminating on signal SIGKILL
+[    61.102] WARN  : PID 190: terminating on signal SIGKILL
 DICTYONOS-OK-14
 /run/service/s6-linux-init-early-getty # echo ---- built content ----; ls -ld /n
 
@@ -220,22 +220,41 @@ DICTYONOS-OK-"15"
 built-in-the-guest
 built-in-the-guest
 DICTYONOS-OK-15
+/run/service/s6-linux-init-early-getty # echo ---- generations ----; mkdir -p /n
+
+ix/store/dictyonos-generation-2; cp -a /run/current-system/. /nix/store/dictyono
+
+s-generation-2/; echo copy-exit=$?; dictyonos-switch /nix/store/dictyonos-genera
+
+tion-2; echo switch-exit=$?; echo nextboot=$(readlink /nix/var/nix/profiles/next
+
+boot); echo prevboot=$(readlink /nix/var/nix/profiles/prevboot); sync -f /var; e
+
+cho DICTYONOS-OK-"16"
+---- generations ----
+copy-exit=0
+next boot: /nix/store/dictyonos-generation-2
+go back : boot with dictyonos.rollback=1 (/nix/store/5ha30c409l4ykklvs5msnh2m3s32m46r-six-system-dictyonos-unknown-nixpkgs-version)
+switch-exit=0
+nextboot=/nix/store/dictyonos-generation-2
+prevboot=/nix/store/5ha30c409l4ykklvs5msnh2m3s32m46r-six-system-dictyonos-unknown-nixpkgs-version
+DICTYONOS-OK-16
 /run/service/s6-linux-init-early-getty # echo ---- persist2 ----; echo late > /v
 
 ar/persist-late; sleep 35; cat /var/persist-late; ls -l /var/persist-late /var/p
 
-ersist-early; tail -3 /var/log/state-sync/current; echo DICTYONOS-OK-"16"
+ersist-early; tail -3 /var/log/state-sync/current; echo DICTYONOS-OK-"17"
 ---- persist2 ----
 late
--rw-r--r--    1 root     root             6 Oct 17 00:13 /var/persist-early
--rw-r--r--    1 root     root             5 Oct 17 00:13 /var/persist-late
-@400000006ad32020187bb100 state-sync: committing /var
-@400000006ad3203e1d18ab26 state-sync: committing /var
-@400000006ad3205c21ad2c34 state-sync: committing /var
-DICTYONOS-OK-16
+-rw-r--r--    1 root     root             6 Oct 18 00:48 /var/persist-early
+-rw-r--r--    1 root     root             5 Oct 18 00:49 /var/persist-late
+@400000006ad479f20a8b486c state-sync: committing /var
+@400000006ad47a100ed85f67 state-sync: committing /var
+@400000006ad47a2e128976e9 state-sync: committing /var
+DICTYONOS-OK-17
 /run/service/s6-linux-init-early-getty # echo DICTYONOS-DONE; echo DICTYONOS-OK-
 
-"17"
+"18"
 DICTYONOS-DONE
 ```
 
@@ -282,8 +301,8 @@ echo DICTYONOS-OK-"02"
 ---- persistence ----
 early
 late
--rw-r--r--    1 root     root             6 Oct 17 00:13 /var/persist-early
--rw-r--r--    1 root     root             5 Oct 17 00:13 /var/persist-late
+-rw-r--r--    1 root     root             6 Oct 18 00:48 /var/persist-early
+-rw-r--r--    1 root     root             5 Oct 18 00:49 /var/persist-late
 DICTYONOS-OK-02
 echo ---- host key ----; dropbearkey -y
 
@@ -291,14 +310,14 @@ echo ---- host key ----; dropbearkey -y
 
 "
 ---- host key ----
-ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEQhn0fq9nvoU6EJk3VD5Rgfb4a7HnNQXSmHP3jwpv1s root@dictyonos
-Fingerprint: SHA256:zU1S0JN8Gwi8fYmrhpg+k5x2KFmp5HwM5DtQVOfJP9w
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPcSt9Tsf4TR8O0zjNAJaCbdDFlLWE2areG7UmDl6xuM root@dictyonos
+Fingerprint: SHA256:sOonqtdNxkNNztDFlQ8lUalCC9xZSSLpMftugvkzvJY
 DICTYONOS-OK-03
 /run/service/s6-linux-init-early-getty # echo ---- state-sync log ----; tail -3
 
 /var/log/state-sync/current; echo DICTYONOS-OK-"04"
 ---- state-sync log ----
-@400000006ad320901a16faf6 state-sync: committing /var
+@400000006ad47a630a80fc5f state-sync: committing /var
 DICTYONOS-OK-04
 /run/service/s6-linux-init-early-getty # echo ---- store persistence ----; ls -l
 
@@ -313,20 +332,48 @@ cho DICTYONOS-OK-"05"
 built-in-the-guest
 built-in-the-guest
 DICTYONOS-OK-05
+/run/service/s6-linux-init-early-getty # echo ---- generation ----; echo nextboo
+
+t=$(readlink /nix/var/nix/profiles/nextboot); echo prevboot=$(readlink /nix/var/
+
+nix/profiles/prevboot); ls -ld /nix/store/dictyonos-generation-2/boot/init; echo
+
+ DICTYONOS-OK-"06"
+---- generation ----
+nextboot=/nix/store/dictyonos-generation-2
+prevboot=/nix/store/5ha30c409l4ykklvs5msnh2m3s32m46r-six-system-dictyonos-unknown-nixpkgs-version
+lrwxrwxrwx    1 1000     100             80 Oct 18 00:49 /nix/store/dictyonos-generation-2/boot/init -> /nix/store/m5j4gp00czqmg4qfg3msbz1j095jav75-six-s6-linux-init-unstable/boot/init
+DICTYONOS-OK-06
 /run/service/s6-linux-init-early-getty # if [ "$(cat /var/persist-early 2>/dev/n
 
 ull)" = early ] && [ "$(cat /var/persist-late 2>/dev/null)" = late ] && [ -e "$(
 
 ls -d /nix/store/*-dictyonos-build-test 2>/dev/null)" ]; then echo REBOOT-PERSIS
 
-TENCE-"OK"; else echo REBOOT-PERSISTENCE-"FAILED"; fi; echo DICTYONOS-OK-"06"
+TENCE-"OK"; else echo REBOOT-PERSISTENCE-"FAILED"; fi; echo DICTYONOS-OK-"07"
 REBOOT-PERSISTENCE-OK
-DICTYONOS-OK-06
+DICTYONOS-OK-07
 /run/service/s6-linux-init-early-getty # echo DICTYONOS-DONE; echo DICTYONOS-OK-
 
-"07"
+"08"
 DICTYONOS-DONE
 ```
+
+## Rolling back, from a separate run
+
+Boot 2 started the generation recorded in nextboot. Going back is one word added to
+the kernel command line the configuration carries: `dictyonos.rollback=1`.
+Same launcher, same state disk, and the initramfs says which side of the profile
+pair it took:
+
+```text
+[dictyonos-init] dictyonos.rollback=1: prevboot before nextboot
+[dictyonos-init] handing off to /nix/store/5ha30c409l4ykklvs5msnh2m3s32m46r-six-system-dictyonos-unknown-nixpkgs-version/boot/init (from prevboot)
+```
+
+nextboot still named `/nix/store/dictyonos-generation-2` at that point, so the
+machine deliberately did not start it: prevboot is the configuration the switch
+kept when it recorded the newer one.
 
 ## The state disk, and how each boot ended, from the host
 
@@ -343,75 +390,76 @@ guest asked it to.
 == boot1: e2fsck -fn state.ext2 ==
 e2fsck 1.47.0 (5-Feb-2023)
 Pass 1: Checking inodes, blocks, and sizes
-Extended attribute in inode 15 has a hash (0) which is invalid
+Extended attribute in inode 18 has a hash (0) which is invalid
 Clear? no
 
-Inode 15, i_blocks is 8, should be 16.  Fix? no
+Inode 18, i_blocks is 8, should be 16.  Fix? no
 
 Pass 2: Checking directory structure
 Pass 3: Checking directory connectivity
 Pass 4: Checking reference counts
 Pass 5: Checking group summary information
-Block bitmap differences:  -2649 -2652 -2665 -2686
+Block bitmap differences:  -2650 -2653 -2666 -2687
 Fix? no
 
 state.ext2: ********** WARNING: Filesystem still has errors **********
 
-state.ext2: 67/32768 files (4.5% non-contiguous), 4283/131072 blocks
+state.ext2: 191/32768 files (2.1% non-contiguous), 4409/131072 blocks
 e2fsck exit status: 4
 == /persist-early ==
 early
 == /persist-late ==
 late
 == /log/state-sync/current ==
-@400000006ad32020187bb100 state-sync: committing /var
-@400000006ad3203e1d18ab26 state-sync: committing /var
-@400000006ad3205c21ad2c34 state-sync: committing /var
+@400000006ad479f20a8b486c state-sync: committing /var
+@400000006ad47a100ed85f67 state-sync: committing /var
+@400000006ad47a2e128976e9 state-sync: committing /var
 == /lib/dropbear ==
-     33   40755 (2)      0      0    4096 17-Oct-2026 15:12 .
-     31   40755 (2)      0      0    4096 17-Oct-2026 15:12 ..
-     37  100600 (1)      0      0      83 17-Oct-2026 15:12 dropbear_ed25519_host_key
+     36   40755 (2)      0      0    4096 18-Oct-2026 15:47 .
+     35   40755 (2)      0      0    4096 18-Oct-2026 15:47 ..
+     39  100600 (1)      0      0      83 18-Oct-2026 15:47 dropbear_ed25519_host_key
 
 ==> boot 2: the guest powered the machine off; QEMU exited by itself with 33 (isa-debug-exit 0x10, no timeout)
 
 == boot2: e2fsck -fn state.ext2 ==
 e2fsck 1.47.0 (5-Feb-2023)
 Pass 1: Checking inodes, blocks, and sizes
-Extended attribute in inode 15 has a hash (0) which is invalid
+Extended attribute in inode 18 has a hash (0) which is invalid
 Clear? no
 
-Inode 15, i_blocks is 8, should be 16.  Fix? no
+Inode 18, i_blocks is 8, should be 16.  Fix? no
 
 Pass 2: Checking directory structure
 Pass 3: Checking directory connectivity
 Pass 4: Checking reference counts
 Pass 5: Checking group summary information
-Block bitmap differences:  -2649 -2652 -2665 -2686
+Block bitmap differences:  -2650 -2653 -2666 -2687
 Fix? no
 
 state.ext2: ********** WARNING: Filesystem still has errors **********
 
-state.ext2: 70/32768 files (4.3% non-contiguous), 4285/131072 blocks
+state.ext2: 194/32768 files (2.1% non-contiguous), 4411/131072 blocks
 e2fsck exit status: 4
 == /persist-early ==
 early
 == /persist-late ==
 late
 == /log/state-sync/current ==
-@400000006ad320901a16faf6 state-sync: committing /var
+@400000006ad47a630a80fc5f state-sync: committing /var
 == /lib/dropbear ==
-     33   40755 (2)      0      0    4096 17-Oct-2026 15:12 .
-     31   40755 (2)      0      0    4096 17-Oct-2026 15:12 ..
-     37  100600 (1)      0      0      83 17-Oct-2026 15:12 dropbear_ed25519_host_key
+     36   40755 (2)      0      0    4096 18-Oct-2026 15:47 .
+     35   40755 (2)      0      0    4096 18-Oct-2026 15:47 ..
+     39  100600 (1)      0      0      83 18-Oct-2026 15:47 dropbear_ed25519_host_key
 
 == dropbear host key, as a client sees it ==
 both boots presented the same key:
-[127.0.0.1]:2222 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEQhn0fq9nvoU6EJk3VD5Rgfb4a7HnNQXSmHP3jwpv1s
+[127.0.0.1]:2222 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPcSt9Tsf4TR8O0zjNAJaCbdDFlLWE2areG7UmDl6xuM
 
 == after boot 2, read from the state disk ==
 persist-early: 'early'
 persist-late:  'late'
 host key:      byte-identical to boot 1
+==> generations: boot 2 started the configuration recorded on the state disk, not the one on the command line
 ```
 
 ## What this demonstrates
@@ -434,6 +482,7 @@ host key:      byte-identical to boot 1
 | Lix runs, and the guest can build | `nix eval --expr '1 + 1'` prints 2, `nix store add-file` adds an object to the store, and a real `nix build` produces /nix/store/...-dictyonos-build-test |
 | what the guest built survives a reboot | boot 2 finds the added file and the built path again, with the same contents |
 | poweroff is a real poweroff | both boots end with `poweroff -f`, and QEMU exits by itself with status 33 (`isa-debug-exit 0x10`): no TIMEOUT, no halted-CPU machine to kill |
+| a generation can be selected | boot 1 runs dictyonos-switch, which writes nextboot/prevboot on the state disk; boot 2 starts that configuration, not the one on its kernel command line |
 | ssh | a real handshake from the host succeeds on both boots and runs `uname -a` and cat `/proc/1/comm` through it |
 | ssh authentication | dropbear records `Pubkey auth succeeded` for 'root'; the launcher's throwaway key is handed over on the kernel command line |
 
@@ -459,6 +508,10 @@ host key:      byte-identical to boot 1
   blocks an attribute occupies. Do not run a
   repairing e2fsck against a state disk you care about, because it would "fix" the
   hashes and lose the overlay's files. See gotcha 14 in [README.md](README.md).
+* A generation has to be a different store path for the switch to mean anything,
+  and the image carries exactly one configuration, so boot 1 first copies it to a
+  second name inside the writable store (/nix/store/dictyonos-generation-2) and
+  switches to that. The copy is a fixture, not a hashed store path.
 * `poweroff -f` is a real poweroff. Asterinas has no ACPI, so the kernel writes 0x10
   to QEMU's isa-debug-exit port (iobase 0xf4) and QEMU exits by itself with
   status 33; the launcher reports that instead of waiting for TIMEOUT, and no

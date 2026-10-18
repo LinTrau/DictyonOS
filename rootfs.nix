@@ -92,7 +92,13 @@ pkgs.stdenvNoCC.mkDerivation {
     # need /bin/sh at all (s6-linux-init and rc.init use absolute paths).
     ln -sfn /run/current-system/sw/bin/sh  "$root/bin/sh"
     ln -sfn /run/current-system/sw/bin/env "$root/usr/bin/env"
+    # The image's own idea of which generation it is. At run time stage1-init
+    # binds the state disk over /nix/var, so this is only what the machine falls
+    # back to, and what a fresh state disk's nextboot is seeded with. Both names
+    # point at this configuration until dictyonos-switch records another one;
+    # prevboot is what `dictyonos.rollback=1` boots.
     ln -sfn "$cfg" "$root/nix/var/nix/profiles/nextboot"
+    ln -sfn "$cfg" "$root/nix/var/nix/profiles/prevboot"
 
     mkdir -p "$root/etc/nix"
     cp -f "$cfg/etc/nix/nix.conf" "$root/etc/nix/nix.conf"
