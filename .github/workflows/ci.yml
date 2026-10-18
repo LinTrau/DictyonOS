@@ -98,7 +98,14 @@ jobs:
           code=$(curl -sS -o /tmp/cachix-cache.json -w '%{http_code}' \
                    -H "Authorization: Bearer $CACHIX_AUTH_TOKEN" \
                    https://cachix.org/api/v1/cache/dictyonos || true)
-          echo "::notice title=cachix token check::GET api/v1/cache/dictyonos -> HTTP $code $(head -c 200 /tmp/cachix-cache.json 2>/dev/null)"
+          perm=$(python3 -c 'import json; print(json.load(open("/tmp/cachix-cache.json"))["permission"])' 2>/dev/null || true)
+          echo "::notice title=cachix token check::GET api/v1/cache/dictyonos -> HTTP $code, permission=${perm:-unknown}"
+          # A read-only token cannot push, and the push would only produce a Haskell
+          # exception saying so; stop here and make the reason explicit instead.
+          if [ "${perm:-}" != "Write" ]; then
+            echo "::warning title=cachix token is read-only::permission=${perm:-unknown}: the token may read dictyonos but not push. Create a write token in Cachix (Account -> Authentication tokens) and replace the secret."
+            exit 0
+          fi
           push cachix push dictyonos $(nix build .#kernel --no-link --print-out-paths) || {
             echo "::warning::the kernel did not reach the cache, so the rest is skipped; the acceptance below still runs"
             exit 0
