@@ -2,6 +2,10 @@
 
 [**English**](README.md) | [简体中文](README.zh-CN.md)
 
+<p align="center">
+  <img src="assets/logo.png" alt="" width="200">
+</p>
+
 A bootable QEMU machine that fuses three upstream projects:
 
 | layer | upstream | role |
@@ -354,12 +358,10 @@ closure into the image instead of a 20 MB one.
   re-mounting them would fail with `EBUSY`; `/` cannot be remounted
   read-write either, because the system disk is read-only on purpose. The
   bundles exist only so the after-references other targets make still resolve.
-* **The first-boot activation branch is pre-empted.** sixos' first-boot branch
-  bind-mounts `/` read-write and calls `chattr +i`, which a read-only ext2 on
-  a read-only QEMU drive cannot do. `rootfs.nix` pre-creates the same `/etc`,
-  `/bin/sh` and `/usr/bin/env` links that activation would create, using the
-  exact targets its `readlink` comparisons test for, so the whole linkify pass
-  is skipped; gotcha 1 explains why that matters so much.
+* **The first-boot activation branch is pre-empted.** `rootfs.nix` pre-creates
+  the `/etc`, `/bin/sh` and `/usr/bin/env` links that activation would create,
+  with the exact targets its `readlink` comparisons test for, so its linkify
+  pass is skipped on a read-only root. Gotcha 1 explains why that matters.
 * **There is no getty target.** `s6-linux-init-maker -G` (derived by sixos from
   `boot.kernel.console`) already supervises a getty on `ttyS0`. A second one
   cannot take the controlling terminal and fails with
@@ -374,12 +376,10 @@ closure into the image instead of a 20 MB one.
   to `/root/.ssh/authorized_keys` on the state disk. dropbear runs with
   `-s`, so password logins are off by construction, and it binds the interface
   address it discovers (gotcha 8) rather than the wildcard.
-* **`has-hwclock` is on.** Asterinas has no RTC driver, so the tag is not
-  literally true, but it is what stops sixos from installing its *file-backed*
-  fake hwclock (`hwclock-fake` + `hwclock-fake-updater`, which `redirfd` a
-  state file into `/etc` and therefore die and get restarted about once a second
-  on a read-only root). With the tag on, sixos installs its real `hwclock`
-  oneshot instead, whose scripts end in `|| true` and cannot fail or spin.
+* **`has-hwclock` is on.** Asterinas has no RTC, so the tag is not literally
+  true, but it makes sixos install its real `hwclock` oneshot (whose scripts end
+  in `|| true`) instead of the *file-backed* fake one, which `redirfd`s state
+  into `/etc` and would therefore spin on a read-only root.
 
 ## Upstream gotchas found the hard way
 
@@ -494,12 +494,6 @@ Each boot ends with `poweroff -f`, so the machine goes away by itself: the
 kernel writes 0x10 to the `isa-debug-exit` port, QEMU exits with status 33, and
 the launcher reports that as the poweroff rather than waiting for `TIMEOUT`.
 
-The commands are typed into the guest's getty one step at a time, and every step
-ends with a sentinel the host waits for. Fixed sleeps are not enough: one step
-deliberately sleeps 35 seconds to let `state-sync` tick, and a host that runs
-ahead sees its own commands echoed back by the tty before the output they belong
-to, which interleaves the transcript and truncates it for whoever reads it later.
-
 Three transcripts come out of it: `./serial.log` (boot 1), `./serial-boot2.log`
 (boot 2) and `./serial.host.log` (ssh, `e2fsck`, `debugfs`). A captured run is
 in [ACCEPTANCE.md](ACCEPTANCE.md).
@@ -522,12 +516,8 @@ uploads all four transcripts either way.
   has to enumerate the addresses it actually has.
 * **State-disk durability runs on a 30-second timer.** Asterinas does no
   background writeback (gotcha 11), so `/var` is committed by the `state-sync`
-  service rather than by the kernel, and anything written in the last half minute
-  before the VM dies is lost, including a store path you just built. The
-  acceptance proves the mechanism both ways: the guest writes
-  `/var/persist-early`, `sync -f`s it and reads it back; `/var/persist-late`
-  is deliberately never synced by the guest and lands on the disk because the
-  service ticked; and the second boot reads both back.
+  service rather than by the kernel: anything written in the last half minute
+  before the VM dies is lost, including a store path you just built.
 * **A repairing `e2fsck` would damage the state disk** (gotcha 14). The
   acceptance only ever runs `e2fsck -fn`.
 * **Rolling back is manual.** `dictyonos.rollback=1` puts `prevboot` back in

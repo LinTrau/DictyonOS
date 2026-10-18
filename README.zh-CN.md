@@ -2,6 +2,10 @@
 
 [**English**](README.md) | [简体中文](README.zh-CN.md)
 
+<p align="center">
+  <img src="assets/logo.png" alt="" width="200">
+</p>
+
 这是一个能启动的 QEMU 虚拟机，把三个上游项目拼在一起：
 
 | 层 | 上游 | 作用 |
@@ -302,10 +306,9 @@ Linux version 5.13.0 (dictyonos@builder) (rustc ...) #1 SMP ...
 * **`mounts.proc`、`mounts.sys` 和 `mounts.""` 是空 bundle。** initramfs 已经把活的 `/proc`
   和 `/sys` 挪进了新根，再挂一次会 `EBUSY`；`/` 也不能重新挂成可写，因为系统盘本来就是
   故意只读的。这几个 bundle 存在只是为了让别的 target 的 after 引用能解析。
-* **首次启动那条 activation 分支被提前满足了。** sixos 的首次启动分支会把 `/` bind 成
-  可写并调用 `chattr +i`，这在只读 QEMU 盘上的只读 ext2 上做不到。`rootfs.nix` 预先建好
-  activation 会建的那些 `/etc`、`/bin/sh`、`/usr/bin/env` 链接，目标字符串和它 `readlink`
-  比较时测的完全一致，于是整趟 linkify 都被跳过。为什么这件事这么要紧，见坑 1。
+* **首次启动那条 activation 分支被提前满足了。** `rootfs.nix` 预先建好 activation 会建的
+  那些 `/etc`、`/bin/sh`、`/usr/bin/env` 链接，目标字符串和它 `readlink` 比较时测的完全
+  一致，于是在只读根上整趟 linkify 都被跳过。为什么这件事这么要紧，见坑 1。
 * **没有 getty target。** `s6-linux-init-maker -G`（由 sixos 从 `boot.kernel.console` 推出）
   已经在 `ttyS0` 上监督一个 getty 了。第二个拿不到控制终端，会以
   `TIOCSCTTY: Operation not permitted` 失败。
@@ -316,10 +319,9 @@ Linux version 5.13.0 (dictyonos@builder) (rustc ...) #1 SMP ...
 * **`ssh` 只认公钥。** 启动脚本生成一次性的密钥对，把公钥那一半放进内核命令行，服务把它
   写进状态盘上的 `/root/.ssh/authorized_keys`。dropbear 带 `-s` 运行，所以密码登录从结构上
   就是关的；它绑定自己发现的接口地址（坑 8），而不是通配地址。
-* **`has-hwclock` 是开的。** Asterinas 没有 RTC 驱动，所以这个标签字面上不成立，但它能
-  挡住 sixos 装它那套*文件驱动*的假 hwclock（`hwclock-fake` + `hwclock-fake-updater`，
-  会把状态文件 `redirfd` 到 `/etc`，于是在只读根上大约每秒挂一次、再被重启一次）。标签
-  打开后 sixos 装的是真正的 `hwclock` oneshot，脚本结尾是 `|| true`，既不会失败也不会空转。
+* **`has-hwclock` 是开的。** Asterinas 没有 RTC，这个标签字面上不成立，但它让 sixos 装
+  真正的 `hwclock` oneshot（脚本结尾是 `|| true`），而不是那套*文件驱动*的假 hwclock——
+  后者会把状态 `redirfd` 到 `/etc`，在只读根上只能反复挂掉重来。
 
 ## 踩过的上游坑
 
@@ -410,10 +412,6 @@ AUTO=1 nix run
 每次启动都以 `poweroff -f` 收尾，于是机器是自己消失的：内核往 `isa-debug-exit` 端口写
 0x10，QEMU 以状态 33 退出，启动脚本把它当作关机成功，而不是一直等到 `TIMEOUT`。
 
-命令是一条一条敲进虚拟机 getty 的，每一步都以宿主在等的哨兵字符串收尾。固定的 sleep 不够
-用：其中有一步故意睡 35 秒好让 `state-sync` 走一拍，而宿主跑得太快时会先看到 tty 回显的
-命令、再看到它对应的输出，把转录交错在一起，也让后来读的人看到被截断的内容。
-
 一次运行会产出三份转录：`./serial.log`（第一次启动）、`./serial-boot2.log`（第二次启动）、
 `./serial.host.log`（ssh、`e2fsck`、`debugfs`），完整的一次抓取在
 [ACCEPTANCE.md](ACCEPTANCE.md)。[.github/workflows/ci.yml](.github/workflows/ci.yml) 在每次
@@ -429,10 +427,8 @@ push 和 pull request 上跑同一套验收，然后**在同一块状态盘上�
 * 系统调用 334（`rseq`）没有实现，每个进程启动时记一条日志；glibc 能正确处理 `ENOSYS`。
 * **不能绑 INET 通配地址**（坑 8）：想要「所有接口」的服务只能自己把实际拥有的地址列出来。
 * **状态盘的持久化以 30 秒为周期。** Asterinas 不做后台回写（坑 11），所以 `/var` 是由
-  `state-sync` 服务而不是内核提交的，虚拟机死之前最后半分钟写进去的东西会丢，包括你刚
-  构建出来的 store path。验收正反两面都证明了这套机制：虚拟机写 `/var/persist-early`、
-  `sync -f` 再读回；`/var/persist-late` 故意从不同步，靠服务自己走一拍落到盘上；第二次
-  启动把两者都读回来。
+  `state-sync` 服务而不是内核提交的：虚拟机死之前最后半分钟写进去的东西会丢，包括你刚
+  构建出来的 store path。
 * **会修复的 `e2fsck` 会弄坏状态盘**（坑 14）。验收只跑 `e2fsck -fn`。
 * **回滚是手动的。** `dictyonos.rollback=1` 只把 `prevboot` 顶到前面启动一次，没有任何
   东西会自己发现新一代没起来，也不会让这个选择固定下来。一代如果在 s6 起来之前就坏了，
