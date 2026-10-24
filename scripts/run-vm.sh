@@ -125,12 +125,15 @@ if [ "${ROLLBACK:-0}" = "1" ]; then
 fi
 
 ACCEL=""
-CPU="${CPU:-Icelake-Server,+x2apic,+vmx}"
 if [ "${ENABLE_KVM:-1}" = "1" ] && [ -e /dev/kvm ]; then
   ACCEL="-accel kvm"
   # A named CPU model only works under KVM when the host supports every feature
   # it implies; the host CPU is the safe default.
   CPU="${CPU:-host}"
+else
+  # Without KVM, QEMU falls back to TCG, which does not expose the host CPU. Use
+  # a named model that still provides x2apic and vmx, which the kernel uses.
+  CPU="${CPU:-Icelake-Server,+x2apic,+vmx}"
 fi
 
 NET_ARGS=()

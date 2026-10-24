@@ -50,7 +50,9 @@ Disk space, with the numbers the build actually produces:
   `/etc`, does not register services, and does not need root.
 
 Memory and CPU count default to `MEM=8G SMP=1`; the acceptance steps fit in that.
-The QEMU CPU model is `Icelake-Server,+x2apic,+vmx`; `CPU=<model>` overrides it.
+The QEMU CPU model is `host` when KVM is in use and
+`Icelake-Server,+x2apic,+vmx` under TCG. KVM is the default and needs `/dev/kvm`;
+`ENABLE_KVM=0` forces the TCG path, and `CPU=<model>` overrides either choice.
 `TIMEOUT=240` is a hard wall-clock limit on **every** QEMU run, not a
 "nothing answered" threshold: the launcher `exec`s `timeout --foreground
 $TIMEOUT` around QEMU, so an interactive session is killed after four minutes
