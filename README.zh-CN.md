@@ -144,6 +144,8 @@ cd dictyonos
 nix run                       # 构建内核 + initramfs + rootfs，然后启动 QEMU
 ```
 
+安装、升级、回滚和救援的完整说明见 [docs/INSTALL.md](docs/INSTALL.md)。
+
 没有缓存时，第一次构建会编译 Asterinas 内核、从源码构建 Lix（坑 13），再打包出 596 MiB
 的 ext2 镜像，全都发生在 Nix sandbox 里，给它几分钟。CI 会把这些产物推到
 [`dictyonos.cachix.org`](https://dictyonos.cachix.org)，flake 在 `nixConfig` 里声明了它，
@@ -162,7 +164,7 @@ nix run --accept-flake-config
 之后：
 
 ```sh
-ssh -p 2222 root@127.0.0.1    # 启动脚本会生成一次性密钥并注入
+ssh -i .dictyonos-vm/id_ed25519 -p 2222 root@127.0.0.1    # 密钥由启动脚本生成
 ```
 
 虚拟机里的 store 可写，所以可以直接在里面构建：
