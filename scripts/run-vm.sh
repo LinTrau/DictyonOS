@@ -596,6 +596,11 @@ else
   33) echo; echo "==> the guest powered the machine off; QEMU exited by itself" ;;
   65) echo "==> the guest asked QEMU to exit with a failure status" >&2; exit 65 ;;
   124) echo "==> TIMEOUT expired while the machine was still running" >&2; exit 124 ;;
+  0) : ;;
+  # Anything else is QEMU refusing the machine outright (a kernel it cannot
+  # load, a disc it cannot open). Passing that through as success would make a
+  # launcher that never booted look like a clean shutdown.
+  *) echo "==> QEMU exited $rc before the guest shut itself down" >&2; exit "$rc" ;;
   esac
 fi
 
