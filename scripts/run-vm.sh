@@ -429,6 +429,10 @@ auto_boot1() {
   # failure but is not one.
   auto "echo ---- persist ----; echo early > /var/persist-early; sync -f /var/persist-early; echo targeted-sync-exit=\$?; cat /var/persist-early"
   auto "echo ---- disks ----; mount | grep -E 'vda|vdb|nix/store|/var'"
+  # The devpts workaround has to keep working: Asterinas leaves the multiplexing
+  # master at /dev/pts/ptmx and never creates /dev/ptmx itself, so stage1-init
+  # links it. If upstream ever starts providing the node, this line shows it.
+  auto "echo ---- ptmx ----; ls -l /dev/ptmx /dev/pts/ptmx 2>&1; ls /dev/pts 2>&1 | head -5"
   auto "echo ---- net ----; ip -o addr 2>/dev/null | head -4; cat /etc/resolv.conf 2>/dev/null; netstat -ltn 2>/dev/null | grep :22"
   auto "echo ---- LIX ----; nix --version"
   auto "nix eval --expr '1 + 1'"
