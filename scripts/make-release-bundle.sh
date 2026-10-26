@@ -43,7 +43,7 @@ cat > "$bundle/start.sh" <<'START_SH'
 # a host with qemu-system-x86_64, mkfs.ext2/e2fsck (e2fsprogs) and ssh/ssh-keygen
 # (openssh) is enough. No Nix, no compiler, nothing to build.
 #
-#   ./start.sh                  interactive serial console (ctrl-a x to quit)
+#   ./start.sh                  interactive serial console (the host's ctrl-c stops it)
 #   AUTO=1 ./start.sh           boot twice, run the acceptance checks, exit
 #   EPHEMERAL=1 ./start.sh      start from a blank state disk
 #

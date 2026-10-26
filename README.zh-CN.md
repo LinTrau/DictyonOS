@@ -420,6 +420,11 @@ AUTO=1 nix run
 push 和 pull request 上跑同一套验收，然后**在同一块状态盘上再启动一次**（`ROLLBACK=1`，
 必须从 `prevboot` 起来，转录是 `./serial-rollback.log`），并且无论成败都上传这四份转录。
 
+发版还多一道：`./scripts/smoke-bundle.sh` 把要附在 release 上的压缩包解开、直接启动
+包里的那份产物，等 ssh 通了在客机里跑一条命令，再要求机器自己关机；
+[.github/workflows/release.yml](.github/workflows/release.yml) 在发布之前跑它，起不来的
+bundle 不会挂到 tag 上。
+
 ## 已知限制
 
 * 虚拟机确实能构建，但它自己没有工具链：需要编译器的构建得先从二进制缓存拉一个，而且

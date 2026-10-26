@@ -10,7 +10,10 @@
 # This job does not re-run the acceptance test.  A tag is cut from a commit
 # that main CI already accepted, and the acceptance takes twice as long as the
 # build.  The build is still a real build, so a release can never be cut from
-# a tree that does not evaluate and compile.
+# a tree that does not evaluate and compile.  What it does run is the bundle's
+# own smoke test: the archive that is about to be attached is unpacked and
+# booted once, and a machine that cannot come up or cannot shut itself down
+# fails the release before anything is published.
 name: release
 
 on:
@@ -47,6 +50,28 @@ jobs:
       # runner image happens to ship.
       - name: Assemble the prebuilt bundle
         run: nix shell nixpkgs#zstd --command ./scripts/make-release-bundle.sh "dictyonos-$GITHUB_REF_NAME-x86_64"
+
+      # Boot the archive itself, not the flake outputs: this is what catches a
+      # packaging step that dropped a file or paired the wrong kernel with the
+      # wrong rootfs, and it is the last chance to stop a broken download.
+      - name: Boot the bundle before publishing
+        env:
+          SMOKE_ARTIFACTS: smoke-artifacts
+        run: |
+          nix shell nixpkgs#zstd nixpkgs#qemu nixpkgs#e2fsprogs nixpkgs#openssh \
+                    nixpkgs#coreutils nixpkgs#procps \
+            --command ./scripts/smoke-bundle.sh "dist/dictyonos-$GITHUB_REF_NAME-x86_64-qemu.tar.zst"
+
+      # A smoke test that only says "it did not boot" is not much use from
+      # another machine, so the console and the serial transcript get uploaded
+      # whenever the step above does not pass.
+      - name: Keep the smoke transcripts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-artifacts
+          path: smoke-artifacts/
+          if-no-files-found: ignore
 
       - name: Publish the release
         env:

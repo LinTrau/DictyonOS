@@ -504,6 +504,12 @@ every push and pull request, then one more boot with `ROLLBACK=1` on the same
 state disk, which has to come up on `prevboot` (`./serial-rollback.log`), and
 uploads all four transcripts either way.
 
+A release goes one step further: `./scripts/smoke-bundle.sh` unpacks the
+archive a release attaches, boots *that*, waits for ssh, runs a command in the
+guest and requires the machine to power itself off, and
+[.github/workflows/release.yml](.github/workflows/release.yml) runs it before
+publishing, so a bundle that does not boot is never attached to a tag.
+
 ## Known limitations
 
 * The guest can build, but it has no toolchain of its own: a build that needs a
